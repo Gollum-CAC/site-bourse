@@ -1,9 +1,8 @@
 // Service pour communiquer avec notre backend API
-// Priorité : variable d'env (ngrok) > détection auto réseau > localhost
-const API_BASE = import.meta.env.VITE_API_URL
-  || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:3001/api'
-    : `${window.location.protocol}//${window.location.hostname}:3001/api`);
+// En local : appel direct localhost:3001
+// En réseau/ngrok : les requêtes /api passent par le proxy Vite
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE = isLocal ? 'http://localhost:3001/api' : '/api';
 
 // ==========================================
 // === ACTIONS — DONNÉES DE BASE ===
