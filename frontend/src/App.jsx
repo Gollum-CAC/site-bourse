@@ -9,6 +9,7 @@ import NewsPage from './pages/NewsPage';
 import Watchlist from './pages/Watchlist';
 import SuperDividendes from './pages/SuperDividendes';
 import CalendrierFinancier from './pages/CalendrierFinancier';
+import ScreenerPage from './pages/ScreenerPage';
 import './App.css';
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/super-dividendes" element={<SuperDividendes />} />
             <Route path="/calendrier" element={<CalendrierFinancier />} />
+            <Route path="/screener" element={<ScreenerPage />} />
           </Routes>
         </main>
         <footer className="app-footer">

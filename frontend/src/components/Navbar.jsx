@@ -7,7 +7,8 @@ function Navbar() {
       <Link to="/" className="navbar-brand">📈 Site Bourse</Link>
       <div className="navbar-links">
         <Link to="/">Accueil</Link>
-        <Link to="/super-dividendes" className="super-div-nav-link">💎 Super Dividendes</Link>
+        <Link to="/screener" className="screener-nav-link">🔍 Screener</Link>
+        <Link to="/super-dividendes" className="super-div-nav-link">💎 Super Div.</Link>
         <Link to="/calendrier" className="calendrier-nav-link">📅 Calendrier</Link>
         <Link to="/cryptos">Cryptos</Link>
         <Link to="/news">Actualités</Link>
