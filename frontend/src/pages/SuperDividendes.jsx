@@ -106,7 +106,7 @@ function SuperDividendes() {
         </div>
       </div>
 
-      {loading && <p className="loading">⏳ Analyse des dividendes en cours... (peut prendre 1-2 minutes avec le plan gratuit)</p>}
+      {loading && <p className="loading">⏳ Chargement des données...</p>}
       {error && (
         <div className="error-block">
           <p className="error-message">{error}</p>
@@ -207,12 +207,18 @@ function SuperDividendes() {
           </div>
 
           {/* Détail au clic - historique dividendes mini */}
-          {sortedStocks.length > 0 && (
-            <div className="super-div-info">
-              <p>💡 Cliquez sur une action pour voir son profil complet, graphique et états financiers.</p>
-              <p>⚠️ Les rendements passés ne préjugent pas des rendements futurs. Faites vos propres recherches.</p>
-            </div>
-          )}
+          {/* Infos base de données */}
+          <div className="super-div-info">
+            {data.totalStocksInDb > 0 && (
+              <p>🗃️ Base : {data.totalStocksInDb} actions PEA indexées • {data.count} avec rendement ≥ 7%</p>
+            )}
+            {data.totalStocksInDb === 0 && (
+              <p>⏳ Le crawler collecte les données en arrière-plan. Les résultats apparaîtront progressivement.</p>
+            )}
+            {data.message && <p>ℹ️ {data.message}</p>}
+            <p>💡 Cliquez sur une action pour voir son profil complet, graphique et états financiers.</p>
+            <p>⚠️ Les rendements passés ne préjugent pas des rendements futurs. Faites vos propres recherches.</p>
+          </div>
         </>
       )}
     </div>

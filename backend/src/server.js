@@ -22,16 +22,36 @@ app.use('/api/cryptos', cryptosRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/dividendes', superDividendesRoutes);
 
-// Route de test
-app.get('/api/health', (req, res) => {
+// Route de test / santé
+app.get('/api/health', async (req, res) => {
   const cacheStats = require('./services/cacheService').stats();
-  res.json({ status: 'ok', message: 'Site Bourse API fonctionne !', cache: cacheStats });
+  let crawlerStats = null;
+  try {
+    const { getCrawlerConfig } = require('./crawler');
+    crawlerStats = getCrawlerConfig();
+  } catch (e) {}
+  res.json({ status: 'ok', message: 'Site Bourse API fonctionne !', cache: cacheStats, crawler: crawlerStats });
 });
 
 // Démarrage du serveur
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
   console.log(`📊 API Actions : http://localhost:${PORT}/api/actions`);
   console.log(`🪙 API Cryptos : http://localhost:${PORT}/api/cryptos`);
   console.log(`📰 API News   : http://localhost:${PORT}/api/news`);
+  console.log(`💎 Super Div  : http://localhost:${PORT}/api/dividendes/super`);
+
+  // Initialiser la base de données
+  const { initDatabase } = require('./initDb');
+  const dbReady = await initDatabase();
+
+  // Démarrer le crawler si la DB est prête
+  if (dbReady) {
+    const { startCrawler } = require('./crawler');
+    startCrawler({
+      requestsPerMinute: 4,       // À ajuster selon ton plan FMP
+      pauseBetweenRequests: 16000, // ~16s entre les requêtes
+      batchSize: 1,
+    });
+  }
 });
