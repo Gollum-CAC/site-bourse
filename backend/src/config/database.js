@@ -1,6 +1,7 @@
 // Configuration de la connexion à PostgreSQL
 const { Pool } = require('pg');
-require('dotenv').config({ path: '../../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

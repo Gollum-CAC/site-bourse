@@ -22,7 +22,8 @@ app.use('/api/news', newsRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Site Bourse API fonctionne !' });
+  const cacheStats = require('./services/cacheService').stats();
+  res.json({ status: 'ok', message: 'Site Bourse API fonctionne !', cache: cacheStats });
 });
 
 // Démarrage du serveur

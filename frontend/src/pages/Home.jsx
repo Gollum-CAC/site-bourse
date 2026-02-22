@@ -6,11 +6,11 @@ import { getQuote, getCryptos, getNews } from '../services/api';
 
 // Marchés avec listes d'actions par défaut triées par capitalisation
 const STOCK_MARKETS = [
-  { label: '🇺🇸 US', key: 'us', symbols: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B', 'JPM', 'V'] },
-  { label: '🇫🇷 Paris', key: 'paris', symbols: ['MC.PA', 'OR.PA', 'RMS.PA', 'TTE.PA', 'AI.PA', 'SAN.PA', 'SU.PA', 'CS.PA', 'BNP.PA', 'DG.PA'] },
-  { label: '🇳🇱 Amsterdam', key: 'amsterdam', symbols: ['ASML.AS', 'INGA.AS', 'PHIA.AS', 'UNA.AS', 'HEIA.AS', 'WKL.AS', 'AD.AS', 'ADYEN.AS', 'NN.AS', 'RAND.AS'] },
-  { label: '🇩🇪 Francfort', key: 'francfort', symbols: ['SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'MBG.DE', 'BMW.DE', 'BAS.DE', 'MUV2.DE', 'AIR.DE', 'IFX.DE'] },
-  { label: '🇬🇧 Londres', key: 'london', symbols: ['SHEL.L', 'AZN.L', 'HSBA.L', 'ULVR.L', 'BP.L', 'RIO.L', 'GSK.L', 'LSEG.L', 'DGE.L', 'REL.L'] },
+  { label: '🇺🇸 US', key: 'us', symbols: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA'] },
+  { label: '🇫🇷 Paris', key: 'paris', symbols: ['MC.PA', 'OR.PA', 'RMS.PA', 'TTE.PA', 'AI.PA'] },
+  { label: '🇳🇱 Amsterdam', key: 'amsterdam', symbols: ['ASML.AS', 'INGA.AS', 'PHIA.AS', 'UNA.AS', 'HEIA.AS'] },
+  { label: '🇩🇪 Francfort', key: 'francfort', symbols: ['SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'MBG.DE'] },
+  { label: '🇬🇧 Londres', key: 'london', symbols: ['SHEL.L', 'AZN.L', 'HSBA.L', 'ULVR.L', 'BP.L'] },
 ];
 
 function Home() {
@@ -49,7 +49,7 @@ function Home() {
     try {
       // Charger les quotes par petits lots pour éviter le rate limit FMP
       const allData = [];
-      const batchSize = 3;
+      const batchSize = 2;
       for (let i = 0; i < market.symbols.length; i += batchSize) {
         const batch = market.symbols.slice(i, i + batchSize);
         const results = await Promise.allSettled(

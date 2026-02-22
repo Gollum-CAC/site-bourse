@@ -1,102 +1,111 @@
-// Service pour appeler l'API Financial Modeling Prep (endpoints stables)
+// Service pour appeler l'API Financial Modeling Prep (avec cache et rate limiting)
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
+const cache = require('./cacheService');
 
 const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
 const API_KEY = process.env.FMP_API_KEY;
 console.log(`[FMP] API Key chargée: ${API_KEY ? API_KEY.substring(0, 6) + '...' : 'MANQUANTE !'}`);
 
-// Récupérer le cours d'une action (ex: AAPL, MC.PA)
-async function getQuote(symbol) {
-  const url = `${FMP_BASE_URL}/quote?symbol=${symbol}&apikey=${API_KEY}`;
-  console.log(`[FMP] Quote request: ${symbol} -> ${url.replace(API_KEY, '***')}`);
-  const response = await fetch(url);
-  if (!response.ok) {
-    const text = await response.text();
-    console.error(`[FMP] Erreur ${response.status} pour ${symbol}:`, text);
-    throw new Error(`Erreur FMP: ${response.status}`);
+// Rate limiter : max 5 requêtes par minute (plan gratuit FMP)
+let requestQueue = [];
+let requestTimes = [];
+const MAX_REQUESTS_PER_MINUTE = 4; // un peu sous la limite pour être safe
+
+async function rateLimitedFetch(url) {
+  // Nettoyer les timestamps > 60s
+  const now = Date.now();
+  requestTimes = requestTimes.filter(t => now - t < 60000);
+
+  // Si on a atteint la limite, attendre
+  if (requestTimes.length >= MAX_REQUESTS_PER_MINUTE) {
+    const oldestRequest = requestTimes[0];
+    const waitTime = 60000 - (now - oldestRequest) + 500; // +500ms de marge
+    console.log(`[FMP] Rate limit atteint, attente ${(waitTime / 1000).toFixed(1)}s...`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+    // Re-nettoyer après l'attente
+    requestTimes = requestTimes.filter(t => Date.now() - t < 60000);
   }
-  const data = await response.json();
-  console.log(`[FMP] Quote réponse pour ${symbol}:`, Array.isArray(data) ? `${data.length} résultats` : typeof data);
-  return data;
+
+  requestTimes.push(Date.now());
+  const response = await fetch(url);
+  
+  if (response.status === 429) {
+    console.log('[FMP] 429 reçu, attente 60s...');
+    await new Promise(resolve => setTimeout(resolve, 60000));
+    requestTimes = [];
+    requestTimes.push(Date.now());
+    return fetch(url);
+  }
+  
+  return response;
 }
 
-// Rechercher une action par nom ou symbole, avec filtre exchange optionnel
+// Fonction helper pour les appels FMP avec cache
+async function fmpFetch(endpoint, cacheKey, ttl = cache.DEFAULT_TTL) {
+  return cache.getOrFetch(cacheKey, async () => {
+    const url = `${FMP_BASE_URL}/${endpoint}&apikey=${API_KEY}`;
+    const response = await rateLimitedFetch(url);
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[FMP] Erreur ${response.status}:`, text.substring(0, 200));
+      throw new Error(`Erreur FMP: ${response.status}`);
+    }
+    return response.json();
+  }, ttl);
+}
+
+// === ENDPOINTS ===
+
+async function getQuote(symbol) {
+  return fmpFetch(`quote?symbol=${symbol}`, `quote:${symbol}`, 300); // 5 min cache
+}
+
 async function searchStock(query, exchange = '') {
-  let url = `${FMP_BASE_URL}/search?query=${query}&limit=15&apikey=${API_KEY}`;
-  if (exchange) url += `&exchange=${exchange}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
-  return response.json();
+  let endpoint = `search?query=${query}&limit=15`;
+  if (exchange) endpoint += `&exchange=${exchange}`;
+  return fmpFetch(endpoint, `search:${query}:${exchange}`, 600); // 10 min cache
 }
 
-// Récupérer l'historique des dividendes
 async function getDividends(symbol) {
-  const response = await fetch(`${FMP_BASE_URL}/dividends?symbol=${symbol}&apikey=${API_KEY}`);
-  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
-  return response.json();
+  return fmpFetch(`dividends?symbol=${symbol}`, `dividends:${symbol}`, cache.LONG_TTL);
 }
 
-// Récupérer le profil d'une entreprise
 async function getCompanyProfile(symbol) {
-  const response = await fetch(`${FMP_BASE_URL}/profile?symbol=${symbol}&apikey=${API_KEY}`);
-  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
-  return response.json();
+  return fmpFetch(`profile?symbol=${symbol}`, `profile:${symbol}`, cache.LONG_TTL);
 }
 
-// Récupérer l'historique des prix (cours journaliers)
 async function getHistoricalPrice(symbol, from, to) {
-  let url = `${FMP_BASE_URL}/historical-price-eod/full?symbol=${symbol}&apikey=${API_KEY}`;
-  if (from) url += `&from=${from}`;
-  if (to) url += `&to=${to}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
-  return response.json();
+  let endpoint = `historical-price-eod/full?symbol=${symbol}`;
+  if (from) endpoint += `&from=${from}`;
+  if (to) endpoint += `&to=${to}`;
+  return fmpFetch(endpoint, `history:${symbol}:${from}:${to}`, cache.LONG_TTL);
 }
 
-// Récupérer les ratios financiers clés (annuels)
 async function getKeyMetrics(symbol) {
-  const response = await fetch(`${FMP_BASE_URL}/key-metrics?symbol=${symbol}&period=annual&limit=5&apikey=${API_KEY}`);
-  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
-  return response.json();
+  return fmpFetch(`key-metrics?symbol=${symbol}&period=annual&limit=5`, `metrics:${symbol}`, cache.LONG_TTL);
 }
 
-// Récupérer les ratios financiers TTM
 async function getRatiosTTM(symbol) {
-  const response = await fetch(`${FMP_BASE_URL}/ratios-ttm?symbol=${symbol}&apikey=${API_KEY}`);
-  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
-  return response.json();
+  return fmpFetch(`ratios-ttm?symbol=${symbol}`, `ratiosTTM:${symbol}`, cache.LONG_TTL);
 }
 
-// Récupérer le compte de résultat (income statement)
 async function getIncomeStatement(symbol, period = 'annual', limit = 5) {
-  const response = await fetch(`${FMP_BASE_URL}/income-statement?symbol=${symbol}&period=${period}&limit=${limit}&apikey=${API_KEY}`);
-  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
-  return response.json();
+  return fmpFetch(`income-statement?symbol=${symbol}&period=${period}&limit=${limit}`, `income:${symbol}:${period}`, cache.LONG_TTL);
 }
 
-// Récupérer le bilan comptable (balance sheet)
 async function getBalanceSheet(symbol, period = 'annual', limit = 5) {
-  const response = await fetch(`${FMP_BASE_URL}/balance-sheet-statement?symbol=${symbol}&period=${period}&limit=${limit}&apikey=${API_KEY}`);
-  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
-  return response.json();
+  return fmpFetch(`balance-sheet-statement?symbol=${symbol}&period=${period}&limit=${limit}`, `balance:${symbol}:${period}`, cache.LONG_TTL);
 }
 
-// Récupérer le flux de trésorerie (cash flow)
 async function getCashFlow(symbol, period = 'annual', limit = 5) {
-  const response = await fetch(`${FMP_BASE_URL}/cash-flow-statement?symbol=${symbol}&period=${period}&limit=${limit}&apikey=${API_KEY}`);
-  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
-  return response.json();
+  return fmpFetch(`cash-flow-statement?symbol=${symbol}&period=${period}&limit=${limit}`, `cashflow:${symbol}:${period}`, cache.LONG_TTL);
 }
 
-// Screener : liste d'actions par exchange, triées par capitalisation
 async function getStockScreener(exchange = '', limit = 20) {
-  let url = `${FMP_BASE_URL}/stock-screener?limit=${limit}&apikey=${API_KEY}`;
-  if (exchange) url += `&exchange=${exchange}`;
-  url += '&isActivelyTrading=true';
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
-  return response.json();
+  let endpoint = `stock-screener?limit=${limit}&isActivelyTrading=true`;
+  if (exchange) endpoint += `&exchange=${exchange}`;
+  return fmpFetch(endpoint, `screener:${exchange}:${limit}`, cache.LONG_TTL);
 }
 
 module.exports = {
