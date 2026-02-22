@@ -1,16 +1,16 @@
 // Service pour communiquer avec notre backend API
 const API_BASE = 'http://localhost:3001/api';
 
-// --- ACTIONS / BOURSE ---
+// ==========================================
+// === ACTIONS — DONNÉES DE BASE ===
+// ==========================================
 
-// Récupérer le cours d'une action (US ou européenne)
 export async function getQuote(symbol) {
   const response = await fetch(`${API_BASE}/actions/quote/${symbol}`);
   if (!response.ok) throw new Error('Erreur lors de la récupération du cours');
   return response.json();
 }
 
-// Rechercher une action avec filtre exchange optionnel
 export async function searchStock(query, exchange = '') {
   let url = `${API_BASE}/actions/search?q=${query}`;
   if (exchange) url += `&exchange=${exchange}`;
@@ -19,21 +19,12 @@ export async function searchStock(query, exchange = '') {
   return response.json();
 }
 
-// Récupérer les dividendes
-export async function getDividends(symbol) {
-  const response = await fetch(`${API_BASE}/actions/dividendes/${symbol}`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération des dividendes');
-  return response.json();
-}
-
-// Récupérer le profil d'une entreprise
 export async function getCompanyProfile(symbol) {
   const response = await fetch(`${API_BASE}/actions/profil/${symbol}`);
   if (!response.ok) throw new Error('Erreur lors de la récupération du profil');
   return response.json();
 }
 
-// Récupérer l'historique des prix
 export async function getHistoricalPrice(symbol, from, to) {
   let url = `${API_BASE}/actions/historique/${symbol}`;
   const params = [];
@@ -45,85 +36,213 @@ export async function getHistoricalPrice(symbol, from, to) {
   return response.json();
 }
 
-// Récupérer les ratios financiers
-export async function getKeyMetrics(symbol) {
-  const response = await fetch(`${API_BASE}/actions/ratios/${symbol}`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération des ratios');
-  return response.json();
-}
-
-// Récupérer les ratios TTM
-export async function getRatiosTTM(symbol) {
-  const response = await fetch(`${API_BASE}/actions/ratios-ttm/${symbol}`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération des ratios TTM');
-  return response.json();
-}
-
-// Récupérer le compte de résultat
-export async function getIncomeStatement(symbol, period = 'annual') {
-  const response = await fetch(`${API_BASE}/actions/income/${symbol}?period=${period}`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération du compte de résultat');
-  return response.json();
-}
-
-// Récupérer le bilan comptable
-export async function getBalanceSheet(symbol, period = 'annual') {
-  const response = await fetch(`${API_BASE}/actions/bilan/${symbol}?period=${period}`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération du bilan');
-  return response.json();
-}
-
-// Récupérer le flux de trésorerie
-export async function getCashFlow(symbol, period = 'annual') {
-  const response = await fetch(`${API_BASE}/actions/cashflow/${symbol}?period=${period}`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération du cash flow');
-  return response.json();
-}
-
-// Screener : liste d'actions par exchange et capitalisation
 export async function getStockScreener(exchange = '', limit = 20) {
   const response = await fetch(`${API_BASE}/actions/screener?exchange=${exchange}&limit=${limit}`);
-  if (!response.ok) throw new Error('Erreur lors de la r\u00e9cup\u00e9ration du screener');
+  if (!response.ok) throw new Error('Erreur screener');
   return response.json();
 }
 
-// --- SUPER DIVIDENDES ---
+// ==========================================
+// === ACTIONS — RATIOS ===
+// ==========================================
 
-// Récupérer les super dividendes PEA
+export async function getKeyMetrics(symbol) {
+  const response = await fetch(`${API_BASE}/actions/ratios/${symbol}`);
+  if (!response.ok) throw new Error('Erreur ratios');
+  return response.json();
+}
+
+export async function getRatiosTTM(symbol) {
+  const response = await fetch(`${API_BASE}/actions/ratios-ttm/${symbol}`);
+  if (!response.ok) throw new Error('Erreur ratios TTM');
+  return response.json();
+}
+
+// ==========================================
+// === ACTIONS — ÉTATS FINANCIERS ===
+// ==========================================
+
+export async function getIncomeStatement(symbol, period = 'annual') {
+  const response = await fetch(`${API_BASE}/actions/income/${symbol}?period=${period}`);
+  if (!response.ok) throw new Error('Erreur compte de résultat');
+  return response.json();
+}
+
+export async function getBalanceSheet(symbol, period = 'annual') {
+  const response = await fetch(`${API_BASE}/actions/bilan/${symbol}?period=${period}`);
+  if (!response.ok) throw new Error('Erreur bilan');
+  return response.json();
+}
+
+export async function getCashFlow(symbol, period = 'annual') {
+  const response = await fetch(`${API_BASE}/actions/cashflow/${symbol}?period=${period}`);
+  if (!response.ok) throw new Error('Erreur cash flow');
+  return response.json();
+}
+
+// ==========================================
+// === ACTIONS — DIVIDENDES & CALENDRIER ===
+// ==========================================
+
+export async function getDividends(symbol) {
+  const response = await fetch(`${API_BASE}/actions/dividendes/${symbol}`);
+  if (!response.ok) throw new Error('Erreur dividendes');
+  return response.json();
+}
+
+export async function getDividendCalendar(from, to) {
+  let url = `${API_BASE}/actions/calendrier-dividendes?`;
+  if (from) url += `from=${from}&`;
+  if (to) url += `to=${to}&`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Erreur calendrier dividendes');
+  return response.json();
+}
+
+// ==========================================
+// === ACTIONS — RÉSULTATS / EARNINGS ===
+// ==========================================
+
+// Historique des résultats (EPS réel vs estimé)
+export async function getEarnings(symbol) {
+  const response = await fetch(`${API_BASE}/actions/earnings/${symbol}`);
+  if (!response.ok) throw new Error('Erreur earnings');
+  return response.json();
+}
+
+// Calendrier des résultats à venir
+export async function getEarningsCalendar(from, to) {
+  let url = `${API_BASE}/actions/calendrier-earnings?`;
+  if (from) url += `from=${from}&`;
+  if (to) url += `to=${to}&`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Erreur calendrier earnings');
+  return response.json();
+}
+
+// Résultats confirmés
+export async function getEarningsConfirmed(from, to) {
+  let url = `${API_BASE}/actions/earnings-confirmes?`;
+  if (from) url += `from=${from}&`;
+  if (to) url += `to=${to}&`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Erreur earnings confirmés');
+  return response.json();
+}
+
+// ==========================================
+// === ACTIONS — CONSENSUS ANALYSTES ===
+// ==========================================
+
+// Estimations analystes (revenus + EPS attendus)
+export async function getAnalystConsensus(symbol) {
+  const response = await fetch(`${API_BASE}/actions/consensus/${symbol}`);
+  if (!response.ok) throw new Error('Erreur consensus');
+  return response.json();
+}
+
+// Objectifs de prix individuels
+export async function getPriceTarget(symbol) {
+  const response = await fetch(`${API_BASE}/actions/objectif-prix/${symbol}`);
+  if (!response.ok) throw new Error('Erreur objectif prix');
+  return response.json();
+}
+
+// Consensus résumé (buy/hold/sell + prix moyen/haut/bas)
+export async function getPriceTargetConsensus(symbol) {
+  const response = await fetch(`${API_BASE}/actions/objectif-consensus/${symbol}`);
+  if (!response.ok) throw new Error('Erreur consensus objectif');
+  return response.json();
+}
+
+// Notes analystes (upgrades/downgrades)
+export async function getAnalystGrades(symbol) {
+  const response = await fetch(`${API_BASE}/actions/grades/${symbol}`);
+  if (!response.ok) throw new Error('Erreur grades');
+  return response.json();
+}
+
+// ==========================================
+// === ACTIONS — INSIDER TRADING ===
+// ==========================================
+
+// Transactions des dirigeants
+export async function getInsiderTrading(symbol) {
+  const response = await fetch(`${API_BASE}/actions/insider/${symbol}`);
+  if (!response.ok) throw new Error('Erreur insider');
+  return response.json();
+}
+
+// Détenteurs institutionnels
+export async function getInstitutionalHolders(symbol) {
+  const response = await fetch(`${API_BASE}/actions/institutionnels/${symbol}`);
+  if (!response.ok) throw new Error('Erreur institutionnels');
+  return response.json();
+}
+
+// ==========================================
+// === ACTIONS — ACTUALITÉS SPÉCIFIQUES ===
+// ==========================================
+
+// Actus liées à une action
+export async function getStockNews(symbol, limit = 20) {
+  const response = await fetch(`${API_BASE}/actions/news/${symbol}?limit=${limit}`);
+  if (!response.ok) throw new Error('Erreur stock news');
+  return response.json();
+}
+
+// Actus financières générales (via FMP)
+export async function getFmpNews(limit = 30) {
+  const response = await fetch(`${API_BASE}/actions/news-generales?limit=${limit}`);
+  if (!response.ok) throw new Error('Erreur FMP news');
+  return response.json();
+}
+
+// Communiqués de presse d'une entreprise
+export async function getPressReleases(symbol, limit = 10) {
+  const response = await fetch(`${API_BASE}/actions/communiques/${symbol}?limit=${limit}`);
+  if (!response.ok) throw new Error('Erreur communiqués');
+  return response.json();
+}
+
+// ==========================================
+// === SUPER DIVIDENDES ===
+// ==========================================
+
 export async function getSuperDividendes() {
   const response = await fetch(`${API_BASE}/dividendes/super`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération des super dividendes');
+  if (!response.ok) throw new Error('Erreur super dividendes');
   return response.json();
 }
 
-// --- CRYPTOMONNAIES ---
+// ==========================================
+// === CRYPTOMONNAIES ===
+// ==========================================
 
-// Récupérer les principales cryptos
 export async function getCryptos(limit = 20) {
   const response = await fetch(`${API_BASE}/cryptos?limit=${limit}`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération des cryptos');
+  if (!response.ok) throw new Error('Erreur cryptos');
   return response.json();
 }
 
-// Récupérer les détails d'une crypto
 export async function getCryptoDetail(id) {
   const response = await fetch(`${API_BASE}/cryptos/${id}`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération des détails crypto');
+  if (!response.ok) throw new Error('Erreur détail crypto');
   return response.json();
 }
 
-// --- ACTUALITÉS ---
+// ==========================================
+// === ACTUALITÉS (NewsAPI) ===
+// ==========================================
 
-// Récupérer les actualités financières
 export async function getNews() {
   const response = await fetch(`${API_BASE}/news`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération des actualités');
+  if (!response.ok) throw new Error('Erreur actualités');
   return response.json();
 }
 
-// Récupérer les gros titres
 export async function getHeadlines() {
   const response = await fetch(`${API_BASE}/news/headlines`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération des titres');
+  if (!response.ok) throw new Error('Erreur titres');
   return response.json();
 }
