@@ -7,6 +7,7 @@ const MARKETS = [
   { label: 'Tous', value: '' },
   { label: '🇺🇸 US', value: 'NASDAQ,NYSE' },
   { label: '🇫🇷 Paris', value: 'EURONEXT' },
+  { label: '🇳🇱 Amsterdam', value: 'EURONEXT' },
   { label: '🇩🇪 Francfort', value: 'XETRA' },
   { label: '🇬🇧 Londres', value: 'LSE' },
 ];

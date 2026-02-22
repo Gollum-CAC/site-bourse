@@ -80,6 +80,13 @@ export async function getCashFlow(symbol, period = 'annual') {
   return response.json();
 }
 
+// Screener : liste d'actions par exchange et capitalisation
+export async function getStockScreener(exchange = '', limit = 20) {
+  const response = await fetch(`${API_BASE}/actions/screener?exchange=${exchange}&limit=${limit}`);
+  if (!response.ok) throw new Error('Erreur lors de la r\u00e9cup\u00e9ration du screener');
+  return response.json();
+}
+
 // --- CRYPTOMONNAIES ---
 
 // Récupérer les principales cryptos

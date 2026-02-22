@@ -2,103 +2,150 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SearchBar from '../components/SearchBar';
-import StockCard from '../components/StockCard';
-import { getQuote, getCryptos, getNews } from '../services/api';
+import { getQuote, getStockScreener, getCryptos, getNews } from '../services/api';
+
+// Marchés avec listes d'actions par défaut triées par capitalisation
+const STOCK_MARKETS = [
+  { label: '🇺🇸 US', key: 'us', symbols: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-A', 'JPM', 'V'] },
+  { label: '🇫🇷 Paris', key: 'paris', symbols: ['MC.PA', 'OR.PA', 'RMS.PA', 'TTE.PA', 'AI.PA', 'SAN.PA', 'SU.PA', 'CS.PA', 'BNP.PA', 'DG.PA'] },
+  { label: '🇳🇱 Amsterdam', key: 'amsterdam', symbols: ['ASML.AS', 'INGA.AS', 'PHIA.AS', 'UNA.AS', 'HEIA.AS', 'WKL.AS', 'AD.AS', 'ADYEN.AS', 'NN.AS', 'RAND.AS'] },
+  { label: '🇩🇪 Francfort', key: 'francfort', symbols: ['SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'MBG.DE', 'BMW.DE', 'BAS.DE', 'MUV2.DE', 'AIR.DE', 'IFX.DE'] },
+  { label: '🇬🇧 Londres', key: 'london', symbols: ['SHEL.L', 'AZN.L', 'HSBA.L', 'ULVR.L', 'BP.L', 'RIO.L', 'GSK.L', 'LSEG.L', 'DGE.L', 'REL.L'] },
+];
 
 function Home() {
+  const [activeMarket, setActiveMarket] = useState('us');
   const [stocks, setStocks] = useState([]);
+  const [stocksLoading, setStocksLoading] = useState(false);
   const [cryptos, setCryptos] = useState([]);
   const [news, setNews] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const navigate = useNavigate();
 
-  // Actions US + Actions européennes PEA
-  const defaultSymbols = [
-    'AAPL', 'MSFT', 'GOOGL',       // US
-    'MC.PA', 'OR.PA', 'AI.PA',     // Euronext Paris (LVMH, L'Oréal, Air Liquide)
-    'TTE.PA', 'SAN.PA',            // TotalEnergies, Sanofi
-  ];
-
   useEffect(() => {
-    loadDefaultStocks();
     loadCryptos();
     loadNews();
+  }, []);
 
-    // Rafraîchissement automatique toutes les 60 secondes
+  useEffect(() => {
+    loadStocksForMarket(activeMarket);
+  }, [activeMarket]);
+
+  // Auto-refresh toutes les 60s
+  useEffect(() => {
     const interval = setInterval(() => {
-      loadDefaultStocks();
+      loadStocksForMarket(activeMarket);
       loadCryptos();
     }, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [activeMarket]);
 
-  async function loadDefaultStocks() {
+  async function loadStocksForMarket(marketKey) {
+    setStocksLoading(true);
+    const market = STOCK_MARKETS.find(m => m.key === marketKey);
+    if (!market) return;
     try {
       const results = await Promise.all(
-        defaultSymbols.map(symbol => getQuote(symbol))
+        market.symbols.map(symbol => getQuote(symbol))
       );
-      setStocks(results.map(r => r[0]).filter(Boolean));
+      const data = results
+        .map(r => r?.[0])
+        .filter(Boolean)
+        .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0));
+      setStocks(data);
     } catch (err) {
       console.error('Erreur chargement actions:', err);
     }
+    setStocksLoading(false);
   }
 
   async function loadCryptos() {
-    try {
-      const data = await getCryptos(5);
-      setCryptos(data);
-    } catch (err) {
-      console.error('Erreur chargement cryptos:', err);
-    }
+    try { setCryptos(await getCryptos(5)); } catch (err) { console.error(err); }
   }
 
   async function loadNews() {
-    try {
-      const data = await getNews();
-      setNews(data);
-    } catch (err) {
-      console.error('Erreur chargement news:', err);
-    }
+    try { setNews(await getNews()); } catch (err) { console.error(err); }
   }
 
-  async function handleSearch(symbol) {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await getQuote(symbol);
-      if (data && data.length > 0) {
-        setStocks(prev => {
-          const filtered = prev.filter(s => s.symbol !== data[0].symbol);
-          return [data[0], ...filtered];
-        });
-      } else {
-        setError(`Aucun résultat pour "${symbol}"`);
-      }
-    } catch (err) {
-      setError(`Erreur lors de la recherche de "${symbol}"`);
-    }
-    setLoading(false);
+  // Formater la capitalisation
+  function fmtCap(val) {
+    if (!val) return 'N/A';
+    if (val >= 1e12) return (val / 1e12).toFixed(2) + ' T';
+    if (val >= 1e9) return (val / 1e9).toFixed(2) + ' Mds';
+    if (val >= 1e6) return (val / 1e6).toFixed(0) + ' M';
+    return val.toLocaleString('fr-FR');
   }
+
+  // Devise selon le marché
+  function getCurrency(marketKey) {
+    if (marketKey === 'us') return '$';
+    if (marketKey === 'london') return '£';
+    return '€';
+  }
+
+  const cur = getCurrency(activeMarket);
 
   return (
     <div className="home-page">
-      <SearchBar onSearch={handleSearch} />
+      <SearchBar />
 
       {error && <p className="error-message">{error}</p>}
-      {loading && <p className="loading">Recherche en cours...</p>}
 
-      {/* Section Actions */}
+      {/* Section Actions par marché */}
       <section className="stocks-section">
-        <h2>📊 Cours des actions</h2>
-        <div className="stocks-grid">
-          {stocks.map(stock => (
-            <Link to={`/action/${stock.symbol}`} key={stock.symbol} className="stock-link">
-              <StockCard stock={stock} />
-            </Link>
+        <div className="section-header">
+          <h2>📊 Cours des actions</h2>
+        </div>
+
+        <div className="stock-market-tabs">
+          {STOCK_MARKETS.map(m => (
+            <button
+              key={m.key}
+              className={activeMarket === m.key ? 'market-tab-active' : ''}
+              onClick={() => setActiveMarket(m.key)}
+            >
+              {m.label}
+            </button>
           ))}
         </div>
+
+        {stocksLoading ? (
+          <p className="loading">Chargement...</p>
+        ) : (
+          <table className="stock-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Nom</th>
+                <th>Prix ({cur})</th>
+                <th>Variation</th>
+                <th>Cap. boursière</th>
+                <th>Volume</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stocks.map((stock, index) => {
+                const isPositive = stock.change >= 0;
+                return (
+                  <tr key={stock.symbol} onClick={() => navigate(`/action/${stock.symbol}`)} style={{ cursor: 'pointer' }}>
+                    <td>{index + 1}</td>
+                    <td className="stock-table-name">
+                      <strong>{stock.symbol}</strong>
+                      <span className="stock-table-fullname">{stock.name}</span>
+                    </td>
+                    <td>{stock.price?.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {cur}</td>
+                    <td style={{ color: isPositive ? '#22c55e' : '#ef4444' }}>
+                      {isPositive ? '▲' : '▼'} {stock.changesPercentage?.toFixed(2) || stock.changePercentage?.toFixed(2)}%
+                    </td>
+                    <td>{fmtCap(stock.marketCap)} {cur}</td>
+                    <td>{stock.volume?.toLocaleString('fr-FR')}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </section>
 
       {/* Aperçu Cryptos */}

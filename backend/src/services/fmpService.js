@@ -79,8 +79,19 @@ async function getCashFlow(symbol, period = 'annual', limit = 5) {
   return response.json();
 }
 
+// Screener : liste d'actions par exchange, triées par capitalisation
+async function getStockScreener(exchange = '', limit = 20) {
+  let url = `${FMP_BASE_URL}/stock-screener?limit=${limit}&apikey=${API_KEY}`;
+  if (exchange) url += `&exchange=${exchange}`;
+  url += '&isActivelyTrading=true';
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
+  return response.json();
+}
+
 module.exports = {
   getQuote, searchStock, getDividends, getCompanyProfile,
   getHistoricalPrice, getKeyMetrics, getRatiosTTM,
-  getIncomeStatement, getBalanceSheet, getCashFlow
+  getIncomeStatement, getBalanceSheet, getCashFlow,
+  getStockScreener
 };

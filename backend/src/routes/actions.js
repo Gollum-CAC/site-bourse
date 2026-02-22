@@ -117,4 +117,16 @@ router.get('/cashflow/:symbol', async (req, res) => {
   }
 });
 
+// GET /api/actions/screener?exchange=euronext&limit=20 - Liste d'actions par capitalisation
+router.get('/screener', async (req, res) => {
+  try {
+    const { exchange, limit } = req.query;
+    const data = await fmpService.getStockScreener(exchange || '', Number(limit) || 20);
+    res.json(data);
+  } catch (error) {
+    console.error('Erreur screener:', error.message);
+    res.status(500).json({ erreur: 'Impossible de r\u00e9cup\u00e9rer la liste' });
+  }
+});
+
 module.exports = router;
