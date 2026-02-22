@@ -49,12 +49,13 @@ app.listen(PORT, async () => {
   if (dbReady) {
     const { startCrawler } = require('./crawler');
     startCrawler({
-      dailyBudget: 250,           // Limite plan gratuit FMP
-      reservedForUser: 50,        // 50 appels pour la navigation
-      dividendBudget: 200,        // 200 actions/jour pour dividendes
-      pauseBetweenRequests: 5000, // 5s entre chaque appel
-      batchSize: 5,               // 5 actions par cycle
-      cycleInterval: 300000,      // Cycle toutes les 5 min
+      dailyBudget: 1000,          // Limite plan FMP
+      reservedForUser: 700,       // 700 pour navigation + futures features
+      dividendBudget: 300,        // 300 dividendes/jour max
+      pauseBetweenRequests: 3000, // 3s entre chaque appel
+      batchSize: 10,              // 10 actions par cycle
+      cycleInterval: 600000,      // Cycle toutes les 10 min
+      dividendRefreshDays: 30,    // Refresh mensuel
     });
   }
 });

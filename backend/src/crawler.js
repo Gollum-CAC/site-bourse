@@ -1,20 +1,20 @@
 // Crawler : collecte et mise à jour des données actions par roulement
-// Budget : 250 appels FMP/jour — stratégie optimisée
+// Budget : 1000 appels FMP/jour — dividendes refresh mensuel, étalé sur 30 jours
 const pool = require('./config/database');
 const fmpService = require('./services/fmpService');
 
 // === CONFIGURATION ===
-// Budget 250 appels/jour :
-//   - 1 appel screener (récupère prix + marketCap de toutes les actions d'un coup)
-//   - ~200 appels dividendes par jour (par roulement)
-//   - ~50 appels réservés pour la navigation utilisateur
+// Budget : 1000 appels/jour
+// Stratégie : les dividendes changent peu → refresh 1x/mois
+// On étale sur 30 jours pour garder de la marge
 let CRAWLER_CONFIG = {
-  dailyBudget: 250,
-  reservedForUser: 50,        // Appels réservés pour la navigation
-  dividendBudget: 200,        // ~200 actions/jour pour les dividendes
-  pauseBetweenRequests: 5000, // 5s entre chaque appel dividende
-  batchSize: 5,               // 5 dividendes par cycle de crawler
-  cycleInterval: 300000,      // 5 min entre chaque cycle
+  dailyBudget: 1000,
+  reservedForUser: 700,       // 700 appels pour navigation + futures features
+  dividendBudget: 300,        // 300 appels/jour max pour dividendes
+  pauseBetweenRequests: 3000, // 3s entre chaque appel
+  batchSize: 10,              // 10 actions par cycle
+  cycleInterval: 600000,      // 10 min entre chaque cycle
+  dividendRefreshDays: 30,    // Ne re-fetch que si > 30 jours
   enabled: true,
 };
 
@@ -43,11 +43,10 @@ function canMakeCall() {
   return dailyCallCount < (CRAWLER_CONFIG.dailyBudget - CRAWLER_CONFIG.reservedForUser);
 }
 
-// === ÉTAPE 1 : Collecter les symboles Euronext via screener ===
-// 1 seul appel API → récupère prix, marketCap, secteur de TOUTES les actions
+// === ÉTAPE 1 : Collecter tous les symboles Euronext (1 appel API) ===
 async function collectSymbols() {
   if (!canMakeCall()) {
-    console.log('[Crawler] ⚠️ Budget quotidien atteint, collecte reportée');
+    console.log('[Crawler] ⚠️ Budget quotidien atteint');
     return 0;
   }
 
@@ -58,7 +57,6 @@ async function collectSymbols() {
     trackCall();
     const stocks = await fmpService.getStockScreener('EURONEXT', 5000);
     if (!Array.isArray(stocks) || stocks.length === 0) {
-      console.log('[Crawler] ⚠️ Aucun résultat du screener');
       await updateCrawlerState('collect_symbols', 'error', null, 0, 0, 'Aucun résultat');
       return 0;
     }
@@ -98,7 +96,7 @@ async function collectSymbols() {
     }
 
     await updateCrawlerState('collect_symbols', 'idle', null, inserted, inserted);
-    console.log(`[Crawler] ✅ ${inserted} symboles Euronext en base (1 appel API utilisé)`);
+    console.log(`[Crawler] ✅ ${inserted} symboles Euronext en base`);
     return inserted;
   } catch (err) {
     await updateCrawlerState('collect_symbols', 'error', null, 0, 0, err.message);
@@ -107,25 +105,28 @@ async function collectSymbols() {
   }
 }
 
-// === ÉTAPE 2 : Mettre à jour les dividendes par roulement ===
-// C'est LE poste principal de dépense API (1 appel par action)
+// === ÉTAPE 2 : Mettre à jour les dividendes (seulement si > 30 jours) ===
 async function updateDividendsBatch() {
   if (!canMakeCall()) {
-    console.log(`[Crawler] ⚠️ Budget quotidien atteint (${dailyCallCount}/${CRAWLER_CONFIG.dailyBudget})`);
+    console.log(`[Crawler] ⚠️ Budget atteint (${dailyCallCount}/${CRAWLER_CONFIG.dailyBudget})`);
     return 0;
   }
 
   try {
-    // Prendre les actions PEA dont les dividendes sont les plus anciens
-    // Priorité aux actions qui ont un prix (donc potentiellement des dividendes)
+    // Actions dont les dividendes n'ont jamais été récupérés OU > 30 jours
     const { rows } = await pool.query(`
       SELECT symbol FROM stocks 
       WHERE is_pea_eligible = TRUE AND price > 0
+        AND (last_dividend_update IS NULL 
+             OR last_dividend_update < NOW() - INTERVAL '${CRAWLER_CONFIG.dividendRefreshDays} days')
       ORDER BY last_dividend_update ASC NULLS FIRST
       LIMIT $1
     `, [CRAWLER_CONFIG.batchSize]);
 
-    if (rows.length === 0) return 0;
+    if (rows.length === 0) {
+      console.log('[Crawler] ✅ Tous les dividendes sont à jour (< 30 jours)');
+      return 0;
+    }
 
     let updated = 0;
     for (const row of rows) {
@@ -162,12 +163,10 @@ async function updateDividendsBatch() {
           [row.symbol]
         );
         updated++;
-
-        // Pause entre les appels
         await new Promise(r => setTimeout(r, CRAWLER_CONFIG.pauseBetweenRequests));
       } catch (err) {
-        console.error(`[Crawler] Erreur dividendes ${row.symbol}:`, err.message);
-        // Marquer quand même comme mis à jour pour ne pas bloquer sur une action en erreur
+        console.error(`[Crawler] Erreur div ${row.symbol}:`, err.message);
+        // Marquer comme traité pour ne pas reboucler dessus
         await pool.query(
           'UPDATE stocks SET last_dividend_update = NOW() WHERE symbol = $1',
           [row.symbol]
@@ -175,8 +174,15 @@ async function updateDividendsBatch() {
       }
     }
 
+    const { rows: remaining } = await pool.query(`
+      SELECT COUNT(*) as c FROM stocks 
+      WHERE is_pea_eligible = TRUE AND price > 0
+        AND (last_dividend_update IS NULL 
+             OR last_dividend_update < NOW() - INTERVAL '${CRAWLER_CONFIG.dividendRefreshDays} days')
+    `);
+
     await updateCrawlerState('update_dividends', 'idle', rows[rows.length - 1]?.symbol, updated, rows.length);
-    console.log(`[Crawler] 📊 Dividendes mis à jour : ${updated}/${rows.length} (appels aujourd'hui : ${dailyCallCount})`);
+    console.log(`[Crawler] 📊 Dividendes : ${updated} mis à jour | ${remaining[0].c} restants | appels aujourd'hui : ${dailyCallCount}`);
     return updated;
   } catch (err) {
     console.error('[Crawler] Erreur batch dividendes:', err.message);
@@ -184,8 +190,7 @@ async function updateDividendsBatch() {
   }
 }
 
-// === ÉTAPE 3 : Recalculer les scores ===
-// Aucun appel API — pur calcul local
+// === ÉTAPE 3 : Recalculer les scores (0 appel API) ===
 async function calculateScores() {
   try {
     const currentYear = new Date().getFullYear();
@@ -212,7 +217,6 @@ async function calculateScores() {
       const latestAnnualDiv = parseFloat(divRows[0]?.total) || 0;
       const currentYield = (latestAnnualDiv / parseFloat(stock.price)) * 100;
 
-      // Garder tout ce qui est >= 5% (marge — le frontend filtre à 7%)
       if (currentYield < 5) continue;
 
       const avgDiv = divRows.reduce((s, r) => s + parseFloat(r.total), 0) / divRows.length;
@@ -283,18 +287,13 @@ async function runCrawlerCycle() {
   crawlerRunning = true;
 
   try {
-    // Vérifier le nombre d'actions en base
     const { rows } = await pool.query('SELECT COUNT(*) as count FROM stocks WHERE is_pea_eligible = TRUE');
     const stockCount = parseInt(rows[0].count);
 
     if (stockCount === 0) {
-      // Première exécution : collecter les symboles (1 appel)
       await collectSymbols();
     } else {
-      // Roulement : mettre à jour les dividendes
       const updated = await updateDividendsBatch();
-      
-      // Recalculer les scores (gratuit, pas d'appel API)
       if (updated > 0) {
         await calculateScores();
       }
@@ -308,25 +307,26 @@ async function runCrawlerCycle() {
 
 // Utilitaires
 async function updateCrawlerState(taskName, status, lastSymbol = null, processed = null, total = null, errorMsg = null) {
-  const sets = ['status = $2', 'last_run_at = NOW()', 'updated_at = NOW()'];
-  const params = [taskName, status];
-  let idx = 3;
-  if (lastSymbol !== null) { sets.push(`last_symbol_processed = $${idx}`); params.push(lastSymbol); idx++; }
-  if (processed !== null) { sets.push(`symbols_processed = $${idx}`); params.push(processed); idx++; }
-  if (total !== null) { sets.push(`symbols_total = $${idx}`); params.push(total); idx++; }
-  if (errorMsg !== null) { sets.push(`error_message = $${idx}`); params.push(errorMsg); idx++; }
-  await pool.query(`UPDATE crawler_state SET ${sets.join(', ')} WHERE task_name = $1`, params);
+  try {
+    const sets = ['status = $2', 'last_run_at = NOW()', 'updated_at = NOW()'];
+    const params = [taskName, status];
+    let idx = 3;
+    if (lastSymbol !== null) { sets.push(`last_symbol_processed = $${idx}`); params.push(lastSymbol); idx++; }
+    if (processed !== null) { sets.push(`symbols_processed = $${idx}`); params.push(processed); idx++; }
+    if (total !== null) { sets.push(`symbols_total = $${idx}`); params.push(total); idx++; }
+    if (errorMsg !== null) { sets.push(`error_message = $${idx}`); params.push(errorMsg); idx++; }
+    await pool.query(`UPDATE crawler_state SET ${sets.join(', ')} WHERE task_name = $1`, params);
+  } catch (e) {
+    // Silencieux si la table n'existe pas encore
+  }
 }
 
 // === API PUBLIQUE ===
 function startCrawler(config = {}) {
   Object.assign(CRAWLER_CONFIG, config);
-  console.log(`[Crawler] 🕷️ Démarrage — budget ${CRAWLER_CONFIG.dailyBudget}/jour, ${CRAWLER_CONFIG.dividendBudget} pour dividendes`);
-  console.log(`[Crawler] ⏱️ Cycle toutes les ${CRAWLER_CONFIG.cycleInterval / 1000}s, batch de ${CRAWLER_CONFIG.batchSize}`);
+  console.log(`[Crawler] 🕷️ Démarrage — budget ${CRAWLER_CONFIG.dailyBudget}/jour, ${CRAWLER_CONFIG.dividendBudget} pour dividendes, refresh tous les ${CRAWLER_CONFIG.dividendRefreshDays}j`);
 
-  // Premier cycle après 5s
   setTimeout(runCrawlerCycle, 5000);
-  // Puis toutes les 5 min
   crawlerInterval = setInterval(runCrawlerCycle, CRAWLER_CONFIG.cycleInterval);
 }
 
