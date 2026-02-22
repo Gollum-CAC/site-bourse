@@ -7,6 +7,7 @@ import CryptosPage from './pages/CryptosPage';
 import CryptoDetail from './pages/CryptoDetail';
 import NewsPage from './pages/NewsPage';
 import Watchlist from './pages/Watchlist';
+import SuperDividendes from './pages/SuperDividendes';
 import './App.css';
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
             <Route path="/crypto/:id" element={<CryptoDetail />} />
             <Route path="/news" element={<NewsPage />} />
             <Route path="/watchlist" element={<Watchlist />} />
+            <Route path="/super-dividendes" element={<SuperDividendes />} />
           </Routes>
         </main>
         <footer className="app-footer">

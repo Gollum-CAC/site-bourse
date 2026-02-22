@@ -87,6 +87,15 @@ export async function getStockScreener(exchange = '', limit = 20) {
   return response.json();
 }
 
+// --- SUPER DIVIDENDES ---
+
+// Récupérer les super dividendes PEA
+export async function getSuperDividendes() {
+  const response = await fetch(`${API_BASE}/dividendes/super`);
+  if (!response.ok) throw new Error('Erreur lors de la récupération des super dividendes');
+  return response.json();
+}
+
 // --- CRYPTOMONNAIES ---
 
 // Récupérer les principales cryptos

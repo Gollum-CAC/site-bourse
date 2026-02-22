@@ -14,11 +14,13 @@ app.use(express.json());
 const actionsRoutes = require('./routes/actions');
 const cryptosRoutes = require('./routes/cryptos');
 const newsRoutes = require('./routes/news');
+const superDividendesRoutes = require('./routes/superDividendes');
 
 // Enregistrement des routes
 app.use('/api/actions', actionsRoutes);
 app.use('/api/cryptos', cryptosRoutes);
 app.use('/api/news', newsRoutes);
+app.use('/api/dividendes', superDividendesRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {

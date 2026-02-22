@@ -1006,6 +1006,208 @@ body {
   border-top: 2px solid #30363d;
 }
 
+/* ===== SUPER DIVIDENDES PEA ===== */
+.super-div-nav-link {
+  color: #a78bfa !important;
+}
+
+.super-div-page {
+  margin-bottom: 40px;
+}
+
+.super-div-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  gap: 20px;
+}
+
+.super-div-header h1 {
+  font-size: 1.8rem;
+  margin-bottom: 8px;
+}
+
+.score-explanation {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.score-explanation h3 {
+  font-size: 1rem;
+  margin-bottom: 12px;
+  color: #c9d1d9;
+}
+
+.score-criteria {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.criterion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #8b949e;
+}
+
+.criterion-pct {
+  background: #58a6ff;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.super-div-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sort-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.sort-buttons span {
+  color: #8b949e;
+  font-size: 0.85rem;
+  margin-right: 4px;
+}
+
+.sort-buttons button {
+  padding: 6px 12px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #8b949e;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.sort-buttons button:hover {
+  background: #21262d;
+  color: #e1e4e8;
+}
+
+.sort-buttons .sort-active {
+  background: #a78bfa;
+  border-color: #a78bfa;
+  color: white;
+}
+
+.filter-sector select {
+  padding: 8px 12px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #e1e4e8;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.results-count {
+  color: #6e7681;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+}
+
+.super-div-table-wrapper {
+  overflow-x: auto;
+  margin-bottom: 24px;
+}
+
+.super-div-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #161b22;
+  border-radius: 12px;
+  overflow: hidden;
+  min-width: 900px;
+}
+
+.super-div-table th {
+  background: #1c2128;
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 0.8rem;
+  color: #8b949e;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.super-div-table td {
+  padding: 12px 14px;
+  border-top: 1px solid #21262d;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.super-div-table tr:hover {
+  background: #1c2128;
+}
+
+.yield-cell {
+  font-weight: 700;
+  font-size: 1rem !important;
+}
+
+.sector-cell {
+  color: #8b949e;
+  font-size: 0.8rem !important;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.regularity-badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.score-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: white;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.super-div-info {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 16px 20px;
+  font-size: 0.85rem;
+  color: #8b949e;
+}
+
+.super-div-info p {
+  margin-bottom: 4px;
+}
+
+.error-block {
+  text-align: center;
+  margin: 20px 0;
+}
+
 /* ===== PAGES ===== */
 .cryptos-page h1,
 .news-page h1,
