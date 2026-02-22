@@ -2,11 +2,11 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SearchBar from '../components/SearchBar';
-import { getQuote, getStockScreener, getCryptos, getNews } from '../services/api';
+import { getQuote, getCryptos, getNews } from '../services/api';
 
 // Marchés avec listes d'actions par défaut triées par capitalisation
 const STOCK_MARKETS = [
-  { label: '🇺🇸 US', key: 'us', symbols: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-A', 'JPM', 'V'] },
+  { label: '🇺🇸 US', key: 'us', symbols: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B', 'JPM', 'V'] },
   { label: '🇫🇷 Paris', key: 'paris', symbols: ['MC.PA', 'OR.PA', 'RMS.PA', 'TTE.PA', 'AI.PA', 'SAN.PA', 'SU.PA', 'CS.PA', 'BNP.PA', 'DG.PA'] },
   { label: '🇳🇱 Amsterdam', key: 'amsterdam', symbols: ['ASML.AS', 'INGA.AS', 'PHIA.AS', 'UNA.AS', 'HEIA.AS', 'WKL.AS', 'AD.AS', 'ADYEN.AS', 'NN.AS', 'RAND.AS'] },
   { label: '🇩🇪 Francfort', key: 'francfort', symbols: ['SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'MBG.DE', 'BMW.DE', 'BAS.DE', 'MUV2.DE', 'AIR.DE', 'IFX.DE'] },
@@ -43,17 +43,30 @@ function Home() {
 
   async function loadStocksForMarket(marketKey) {
     setStocksLoading(true);
+    setStocks([]);
     const market = STOCK_MARKETS.find(m => m.key === marketKey);
-    if (!market) return;
+    if (!market) { setStocksLoading(false); return; }
     try {
-      const results = await Promise.all(
-        market.symbols.map(symbol => getQuote(symbol))
-      );
-      const data = results
-        .map(r => r?.[0])
-        .filter(Boolean)
-        .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0));
-      setStocks(data);
+      // Charger les quotes par petits lots pour éviter le rate limit FMP
+      const allData = [];
+      const batchSize = 3;
+      for (let i = 0; i < market.symbols.length; i += batchSize) {
+        const batch = market.symbols.slice(i, i + batchSize);
+        const results = await Promise.allSettled(
+          batch.map(symbol => getQuote(symbol))
+        );
+        results.forEach(r => {
+          if (r.status === 'fulfilled' && r.value?.[0]) {
+            allData.push(r.value[0]);
+          }
+        });
+        // Mettre à jour progressivement
+        setStocks([...allData].sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0)));
+        // Petit délai entre les lots
+        if (i + batchSize < market.symbols.length) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
     } catch (err) {
       console.error('Erreur chargement actions:', err);
     }
@@ -110,8 +123,10 @@ function Home() {
           ))}
         </div>
 
-        {stocksLoading ? (
-          <p className="loading">Chargement...</p>
+        {stocksLoading && stocks.length === 0 ? (
+          <p className="loading">Chargement des actions...</p>
+        ) : stocks.length === 0 && !stocksLoading ? (
+          <p className="no-data">Aucune donnée disponible. Vérifiez que le backend tourne sur localhost:3001.</p>
         ) : (
           <table className="stock-table">
             <thead>
@@ -136,7 +151,7 @@ function Home() {
                     </td>
                     <td>{stock.price?.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {cur}</td>
                     <td style={{ color: isPositive ? '#22c55e' : '#ef4444' }}>
-                      {isPositive ? '▲' : '▼'} {stock.changesPercentage?.toFixed(2) || stock.changePercentage?.toFixed(2)}%
+                      {isPositive ? '▲' : '▼'} {(stock.changesPercentage ?? stock.changePercentage ?? 0).toFixed(2)}%
                     </td>
                     <td>{fmtCap(stock.marketCap)} {cur}</td>
                     <td>{stock.volume?.toLocaleString('fr-FR')}</td>

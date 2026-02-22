@@ -91,9 +91,9 @@ function SearchBar({ onSearch }) {
     <div className="search-wrapper" ref={wrapperRef}>
       <form className="search-bar" onSubmit={handleSubmit}>
         <div className="market-filter">
-          {MARKETS.map(m => (
+          {MARKETS.map((m, i) => (
             <button
-              key={m.value}
+              key={m.label}
               type="button"
               className={market === m.value ? 'market-active' : ''}
               onClick={() => setMarket(m.value)}
