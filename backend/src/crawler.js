@@ -1,21 +1,22 @@
 // Crawler : collecte et mise à jour des données actions par roulement
-// Budget : 1000 appels FMP/jour — roulement hebdomadaire pour les données stables
+// Budget RÉEL : 250 appels FMP/jour (plan gratuit)
 const pool = require('./config/database');
 const fmpService = require('./services/fmpService');
 
 // === CONFIGURATION ===
-// Budget : 1000 appels/jour
-// ~750 actions à couvrir (Euronext + US top + Asie top)
-// Dividendes : 1 refresh/semaine, étalé → ~110 actions/jour → ~750 en 7 jours
-// Reste ~890 appels/jour pour la navigation
+// Budget : 250 appels/jour
+// - 200 réservés pour la navigation utilisateur
+// - 50 pour le crawler (dividendes par roulement mensuel)
+// Avec 50 appels/jour : ~50 actions mises à jour par jour, cycle complet en ~15 jours
+// Priorité absolue : ne pas bloquer l'expérience utilisateur
 let CRAWLER_CONFIG = {
-  dailyBudget: 1000,
-  reservedForUser: 850,       // Navigation, recherches, pages détail
-  crawlerBudget: 150,         // 150 appels/jour pour le crawler
-  pauseBetweenRequests: 3000, // 3s entre chaque appel
-  batchSize: 10,              // 10 actions par cycle
-  cycleInterval: 600000,      // 10 min entre chaque cycle
-  dividendRefreshDays: 7,     // Refresh hebdomadaire
+  dailyBudget: 250,
+  reservedForUser: 200,       // 200 appels réservés pour la navigation
+  crawlerBudget: 50,          // 50 appels/jour max pour le crawler
+  pauseBetweenRequests: 5000, // 5s entre chaque appel (prudence)
+  batchSize: 5,               // 5 actions par cycle
+  cycleInterval: 1800000,     // Cycle toutes les 30 min (au lieu de 10)
+  dividendRefreshDays: 30,    // Refresh mensuel (au lieu de 7)
   enabled: true,
 };
 

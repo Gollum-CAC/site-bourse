@@ -51,12 +51,12 @@ app.listen(PORT, '0.0.0.0', async () => {
   if (dbReady) {
     const { startCrawler } = require('./crawler');
     startCrawler({
-      dailyBudget: 1000,          // Limite plan FMP
-      reservedForUser: 700,       // 700 pour navigation + futures features
-      dividendBudget: 300,        // 300 dividendes/jour max
-      pauseBetweenRequests: 3000, // 3s entre chaque appel
-      batchSize: 10,              // 10 actions par cycle
-      cycleInterval: 600000,      // Cycle toutes les 10 min
+      dailyBudget: 250,           // Limite réelle plan FMP gratuit
+      reservedForUser: 200,       // 200 pour la navigation utilisateur
+      crawlerBudget: 50,          // 50 appels/jour pour le crawler
+      pauseBetweenRequests: 5000, // 5s entre chaque appel
+      batchSize: 5,               // 5 actions par cycle
+      cycleInterval: 1800000,     // Cycle toutes les 30 min
       dividendRefreshDays: 30,    // Refresh mensuel
     });
   }
