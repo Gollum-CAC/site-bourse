@@ -1,5 +1,6 @@
 // Service pour appeler NewsAPI (actualités financières)
-require('dotenv').config({ path: '../../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
 
 const NEWSAPI_BASE_URL = 'https://newsapi.org/v2';
 const API_KEY = process.env.NEWSAPI_API_KEY;

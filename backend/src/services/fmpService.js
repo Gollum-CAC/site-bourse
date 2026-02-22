@@ -1,14 +1,24 @@
 // Service pour appeler l'API Financial Modeling Prep (endpoints stables)
-require('dotenv').config({ path: '../../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
 
 const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
 const API_KEY = process.env.FMP_API_KEY;
+console.log(`[FMP] API Key chargée: ${API_KEY ? API_KEY.substring(0, 6) + '...' : 'MANQUANTE !'}`);
 
 // Récupérer le cours d'une action (ex: AAPL, MC.PA)
 async function getQuote(symbol) {
-  const response = await fetch(`${FMP_BASE_URL}/quote?symbol=${symbol}&apikey=${API_KEY}`);
-  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
-  return response.json();
+  const url = `${FMP_BASE_URL}/quote?symbol=${symbol}&apikey=${API_KEY}`;
+  console.log(`[FMP] Quote request: ${symbol} -> ${url.replace(API_KEY, '***')}`);
+  const response = await fetch(url);
+  if (!response.ok) {
+    const text = await response.text();
+    console.error(`[FMP] Erreur ${response.status} pour ${symbol}:`, text);
+    throw new Error(`Erreur FMP: ${response.status}`);
+  }
+  const data = await response.json();
+  console.log(`[FMP] Quote réponse pour ${symbol}:`, Array.isArray(data) ? `${data.length} résultats` : typeof data);
+  return data;
 }
 
 // Rechercher une action par nom ou symbole, avec filtre exchange optionnel

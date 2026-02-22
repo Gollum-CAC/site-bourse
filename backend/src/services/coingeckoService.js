@@ -1,5 +1,6 @@
 // Service pour appeler l'API CoinGecko (cryptomonnaies)
-require('dotenv').config({ path: '../../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
 
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
 const API_KEY = process.env.COINGECKO_API_KEY;
