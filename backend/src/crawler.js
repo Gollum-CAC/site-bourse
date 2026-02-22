@@ -1,147 +1,143 @@
 // Crawler : collecte et mise à jour des données actions par roulement
-// Respecte le rate limit FMP en espaçant les requêtes
+// Budget : 250 appels FMP/jour — stratégie optimisée
 const pool = require('./config/database');
 const fmpService = require('./services/fmpService');
 
-// Configuration — sera ajustée selon les limites FMP exactes
+// === CONFIGURATION ===
+// Budget 250 appels/jour :
+//   - 1 appel screener (récupère prix + marketCap de toutes les actions d'un coup)
+//   - ~200 appels dividendes par jour (par roulement)
+//   - ~50 appels réservés pour la navigation utilisateur
 let CRAWLER_CONFIG = {
-  requestsPerMinute: 4,       // Limite par défaut (plan gratuit), à ajuster
-  batchSize: 1,               // 1 action à la fois pour être safe
-  pauseBetweenRequests: 16000, // ~16s entre chaque requête (4/min)
+  dailyBudget: 250,
+  reservedForUser: 50,        // Appels réservés pour la navigation
+  dividendBudget: 200,        // ~200 actions/jour pour les dividendes
+  pauseBetweenRequests: 5000, // 5s entre chaque appel dividende
+  batchSize: 5,               // 5 dividendes par cycle de crawler
+  cycleInterval: 300000,      // 5 min entre chaque cycle
   enabled: true,
 };
 
-// Exchanges éligibles PEA
-const PEA_EXCHANGES = ['EURONEXT', 'PAR', 'AMS', 'BRU', 'LIS'];
-
-// Le crawler peut être stoppé proprement
 let crawlerRunning = false;
 let crawlerInterval = null;
+let dailyCallCount = 0;
+let lastResetDate = new Date().toDateString();
 
-// === ÉTAPE 1 : Collecter les symboles Euronext depuis FMP ===
+// Compteur d'appels quotidiens
+function trackCall() {
+  const today = new Date().toDateString();
+  if (today !== lastResetDate) {
+    dailyCallCount = 0;
+    lastResetDate = today;
+    console.log('[Crawler] 🔄 Reset compteur quotidien');
+  }
+  dailyCallCount++;
+}
+
+function canMakeCall() {
+  const today = new Date().toDateString();
+  if (today !== lastResetDate) {
+    dailyCallCount = 0;
+    lastResetDate = today;
+  }
+  return dailyCallCount < (CRAWLER_CONFIG.dailyBudget - CRAWLER_CONFIG.reservedForUser);
+}
+
+// === ÉTAPE 1 : Collecter les symboles Euronext via screener ===
+// 1 seul appel API → récupère prix, marketCap, secteur de TOUTES les actions
 async function collectSymbols() {
-  console.log('[Crawler] 🔍 Collecte des symboles Euronext...');
+  if (!canMakeCall()) {
+    console.log('[Crawler] ⚠️ Budget quotidien atteint, collecte reportée');
+    return 0;
+  }
+
+  console.log('[Crawler] 🔍 Collecte des symboles Euronext (1 appel API)...');
   await updateCrawlerState('collect_symbols', 'running');
 
   try {
-    // Utiliser le stock screener FMP pour récupérer les actions Euronext
-    // On fait plusieurs appels avec différents filtres pour couvrir large
-    const exchanges = ['EURONEXT'];
-    let totalInserted = 0;
-
-    for (const exchange of exchanges) {
-      try {
-        const stocks = await fmpService.getStockScreener(exchange, 1000);
-        if (!Array.isArray(stocks)) continue;
-
-        for (const stock of stocks) {
-          if (!stock.symbol || !stock.companyName) continue;
-
-          // Déterminer le pays depuis le suffixe
-          let country = 'FR';
-          if (stock.symbol.endsWith('.AS')) country = 'NL';
-          else if (stock.symbol.endsWith('.BR')) country = 'BE';
-          else if (stock.symbol.endsWith('.LS')) country = 'PT';
-
-          await pool.query(`
-            INSERT INTO stocks (symbol, name, exchange, country, sector, industry, market_cap, price, is_pea_eligible)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
-            ON CONFLICT (symbol) DO UPDATE SET
-              name = COALESCE(EXCLUDED.name, stocks.name),
-              sector = COALESCE(EXCLUDED.sector, stocks.sector),
-              industry = COALESCE(EXCLUDED.industry, stocks.industry),
-              market_cap = COALESCE(EXCLUDED.market_cap, stocks.market_cap),
-              price = COALESCE(EXCLUDED.price, stocks.price),
-              updated_at = NOW()
-          `, [
-            stock.symbol,
-            stock.companyName,
-            stock.exchangeShortName || exchange,
-            country,
-            stock.sector || null,
-            stock.industry || null,
-            stock.marketCap || null,
-            stock.price || null,
-          ]);
-          totalInserted++;
-        }
-        console.log(`[Crawler] ${exchange}: ${stocks.length} actions récupérées`);
-      } catch (err) {
-        console.error(`[Crawler] Erreur pour ${exchange}:`, err.message);
-      }
+    trackCall();
+    const stocks = await fmpService.getStockScreener('EURONEXT', 5000);
+    if (!Array.isArray(stocks) || stocks.length === 0) {
+      console.log('[Crawler] ⚠️ Aucun résultat du screener');
+      await updateCrawlerState('collect_symbols', 'error', null, 0, 0, 'Aucun résultat');
+      return 0;
     }
 
-    await updateCrawlerState('collect_symbols', 'idle', null, totalInserted, totalInserted);
-    console.log(`[Crawler] ✅ ${totalInserted} symboles en base`);
-    return totalInserted;
+    let inserted = 0;
+    for (const stock of stocks) {
+      if (!stock.symbol || !stock.companyName) continue;
+
+      let country = 'FR';
+      if (stock.symbol.endsWith('.AS')) country = 'NL';
+      else if (stock.symbol.endsWith('.BR')) country = 'BE';
+      else if (stock.symbol.endsWith('.LS')) country = 'PT';
+      else if (stock.symbol.endsWith('.IR')) country = 'IE';
+
+      await pool.query(`
+        INSERT INTO stocks (symbol, name, exchange, country, sector, industry, market_cap, price, is_pea_eligible, last_quote_update)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, NOW())
+        ON CONFLICT (symbol) DO UPDATE SET
+          name = COALESCE(EXCLUDED.name, stocks.name),
+          sector = COALESCE(EXCLUDED.sector, stocks.sector),
+          industry = COALESCE(EXCLUDED.industry, stocks.industry),
+          market_cap = COALESCE(EXCLUDED.market_cap, stocks.market_cap),
+          price = COALESCE(EXCLUDED.price, stocks.price),
+          last_quote_update = NOW(),
+          updated_at = NOW()
+      `, [
+        stock.symbol,
+        stock.companyName,
+        stock.exchangeShortName || 'EURONEXT',
+        country,
+        stock.sector || null,
+        stock.industry || null,
+        stock.marketCap || null,
+        stock.price || null,
+      ]);
+      inserted++;
+    }
+
+    await updateCrawlerState('collect_symbols', 'idle', null, inserted, inserted);
+    console.log(`[Crawler] ✅ ${inserted} symboles Euronext en base (1 appel API utilisé)`);
+    return inserted;
   } catch (err) {
     await updateCrawlerState('collect_symbols', 'error', null, 0, 0, err.message);
-    console.error('[Crawler] ❌ Erreur collecte symboles:', err.message);
+    console.error('[Crawler] ❌ Erreur collecte:', err.message);
     return 0;
   }
 }
 
-// === ÉTAPE 2 : Mettre à jour les quotes (prix, marketCap) par roulement ===
-async function updateQuotesBatch() {
-  try {
-    // Prendre les actions les plus anciennes (ou jamais mises à jour)
-    const { rows } = await pool.query(`
-      SELECT symbol FROM stocks 
-      WHERE is_pea_eligible = TRUE
-      ORDER BY last_quote_update ASC NULLS FIRST
-      LIMIT $1
-    `, [CRAWLER_CONFIG.batchSize]);
-
-    if (rows.length === 0) return 0;
-
-    for (const row of rows) {
-      try {
-        const quoteData = await fmpService.getQuote(row.symbol);
-        const quote = Array.isArray(quoteData) ? quoteData[0] : null;
-        
-        if (quote && quote.price) {
-          await pool.query(`
-            UPDATE stocks SET 
-              price = $1, market_cap = $2, name = COALESCE($3, name),
-              last_quote_update = NOW(), updated_at = NOW()
-            WHERE symbol = $4
-          `, [quote.price, quote.marketCap || null, quote.name || null, row.symbol]);
-        }
-
-        await pause();
-      } catch (err) {
-        console.error(`[Crawler] Erreur quote ${row.symbol}:`, err.message);
-      }
-    }
-
-    return rows.length;
-  } catch (err) {
-    console.error('[Crawler] Erreur batch quotes:', err.message);
-    return 0;
-  }
-}
-
-// === ÉTAPE 3 : Mettre à jour les dividendes par roulement ===
+// === ÉTAPE 2 : Mettre à jour les dividendes par roulement ===
+// C'est LE poste principal de dépense API (1 appel par action)
 async function updateDividendsBatch() {
+  if (!canMakeCall()) {
+    console.log(`[Crawler] ⚠️ Budget quotidien atteint (${dailyCallCount}/${CRAWLER_CONFIG.dailyBudget})`);
+    return 0;
+  }
+
   try {
-    // Prendre les actions dont les dividendes sont les plus anciens
+    // Prendre les actions PEA dont les dividendes sont les plus anciens
+    // Priorité aux actions qui ont un prix (donc potentiellement des dividendes)
     const { rows } = await pool.query(`
       SELECT symbol FROM stocks 
-      WHERE is_pea_eligible = TRUE
+      WHERE is_pea_eligible = TRUE AND price > 0
       ORDER BY last_dividend_update ASC NULLS FIRST
       LIMIT $1
     `, [CRAWLER_CONFIG.batchSize]);
 
     if (rows.length === 0) return 0;
 
+    let updated = 0;
     for (const row of rows) {
+      if (!canMakeCall()) break;
+
       try {
+        trackCall();
         const divData = await fmpService.getDividends(row.symbol);
         let dividends = [];
         if (Array.isArray(divData)) dividends = divData;
         else if (divData?.historical) dividends = divData.historical;
 
-        // Insérer les dividendes
         for (const div of dividends) {
           const exDate = div.date || div.exDate || null;
           const amount = div.dividend || div.adjDividend || 0;
@@ -161,30 +157,39 @@ async function updateDividendsBatch() {
           ]);
         }
 
-        await pool.query(`
-          UPDATE stocks SET last_dividend_update = NOW(), updated_at = NOW()
-          WHERE symbol = $1
-        `, [row.symbol]);
+        await pool.query(
+          'UPDATE stocks SET last_dividend_update = NOW(), updated_at = NOW() WHERE symbol = $1',
+          [row.symbol]
+        );
+        updated++;
 
-        await pause();
+        // Pause entre les appels
+        await new Promise(r => setTimeout(r, CRAWLER_CONFIG.pauseBetweenRequests));
       } catch (err) {
         console.error(`[Crawler] Erreur dividendes ${row.symbol}:`, err.message);
+        // Marquer quand même comme mis à jour pour ne pas bloquer sur une action en erreur
+        await pool.query(
+          'UPDATE stocks SET last_dividend_update = NOW() WHERE symbol = $1',
+          [row.symbol]
+        );
       }
     }
 
-    return rows.length;
+    await updateCrawlerState('update_dividends', 'idle', rows[rows.length - 1]?.symbol, updated, rows.length);
+    console.log(`[Crawler] 📊 Dividendes mis à jour : ${updated}/${rows.length} (appels aujourd'hui : ${dailyCallCount})`);
+    return updated;
   } catch (err) {
     console.error('[Crawler] Erreur batch dividendes:', err.message);
     return 0;
   }
 }
 
-// === ÉTAPE 4 : Recalculer les scores de dividendes ===
+// === ÉTAPE 3 : Recalculer les scores ===
+// Aucun appel API — pur calcul local
 async function calculateScores() {
   try {
     const currentYear = new Date().getFullYear();
 
-    // Récupérer toutes les actions PEA avec leur prix
     const { rows: stocks } = await pool.query(`
       SELECT s.symbol, s.name, s.sector, s.price, s.market_cap
       FROM stocks s
@@ -194,7 +199,6 @@ async function calculateScores() {
     let calculated = 0;
 
     for (const stock of stocks) {
-      // Récupérer les dividendes annuels (somme par année)
       const { rows: divRows } = await pool.query(`
         SELECT EXTRACT(YEAR FROM ex_date)::INTEGER as year, SUM(amount) as total
         FROM dividends
@@ -205,18 +209,17 @@ async function calculateScores() {
 
       if (divRows.length === 0) continue;
 
-      const latestAnnualDiv = divRows[0]?.total || 0;
-      const currentYield = (latestAnnualDiv / stock.price) * 100;
+      const latestAnnualDiv = parseFloat(divRows[0]?.total) || 0;
+      const currentYield = (latestAnnualDiv / parseFloat(stock.price)) * 100;
 
-      // Seuil : on ne calcule que pour les rendements >= 5% (marge pour les fluctuations)
+      // Garder tout ce qui est >= 5% (marge — le frontend filtre à 7%)
       if (currentYield < 5) continue;
 
       const avgDiv = divRows.reduce((s, r) => s + parseFloat(r.total), 0) / divRows.length;
-      const avgYield = (avgDiv / stock.price) * 100;
+      const avgYield = (avgDiv / parseFloat(stock.price)) * 100;
       const yearsWithDiv = Math.min(divRows.length, 5);
       const regularity = Math.round((yearsWithDiv / 5) * 100);
 
-      // Croissance
       let growth = 0;
       if (divRows.length >= 2) {
         const newest = parseFloat(divRows[0].total);
@@ -224,7 +227,6 @@ async function calculateScores() {
         if (oldest > 0) growth = ((newest - oldest) / oldest) * 100;
       }
 
-      // Score composite
       const yieldScore = Math.min(currentYield / 15 * 40, 40);
       const regularityScore = (regularity / 100) * 30;
       const growthScore = Math.min(Math.max(growth + 20, 0) / 40 * 20, 20);
@@ -238,7 +240,7 @@ async function calculateScores() {
       const history = divRows.slice(0, 5).map(r => ({
         year: r.year,
         dividend: Math.round(parseFloat(r.total) * 1000) / 1000,
-        yield: Math.round((parseFloat(r.total) / stock.price) * 10000) / 100,
+        yield: Math.round((parseFloat(r.total) / parseFloat(stock.price)) * 10000) / 100,
       }));
 
       await pool.query(`
@@ -263,12 +265,11 @@ async function calculateScores() {
         score,
         JSON.stringify(history),
       ]);
-
       calculated++;
     }
 
     await updateCrawlerState('calculate_scores', 'idle', null, calculated, stocks.length);
-    console.log(`[Crawler] ✅ Scores calculés pour ${calculated}/${stocks.length} actions`);
+    console.log(`[Crawler] ✅ Scores : ${calculated} actions avec rendement ≥ 5%`);
     return calculated;
   } catch (err) {
     console.error('[Crawler] Erreur calcul scores:', err.message);
@@ -276,40 +277,26 @@ async function calculateScores() {
   }
 }
 
-// === Boucle principale du crawler ===
+// === BOUCLE PRINCIPALE ===
 async function runCrawlerCycle() {
   if (!CRAWLER_CONFIG.enabled || crawlerRunning) return;
   crawlerRunning = true;
 
   try {
-    // Vérifier si on a des symboles en base
+    // Vérifier le nombre d'actions en base
     const { rows } = await pool.query('SELECT COUNT(*) as count FROM stocks WHERE is_pea_eligible = TRUE');
     const stockCount = parseInt(rows[0].count);
 
     if (stockCount === 0) {
-      // Première exécution : collecter les symboles
-      console.log('[Crawler] 🚀 Première exécution — collecte des symboles...');
+      // Première exécution : collecter les symboles (1 appel)
       await collectSymbols();
     } else {
-      // Roulement : alterner quotes et dividendes
-      const { rows: stateRows } = await pool.query(
-        "SELECT * FROM crawler_state WHERE task_name IN ('update_quotes', 'update_dividends') ORDER BY last_run_at ASC NULLS FIRST LIMIT 1"
-      );
+      // Roulement : mettre à jour les dividendes
+      const updated = await updateDividendsBatch();
       
-      const nextTask = stateRows[0]?.task_name || 'update_quotes';
-      
-      if (nextTask === 'update_quotes') {
-        const updated = await updateQuotesBatch();
-        if (updated > 0) {
-          await updateCrawlerState('update_quotes', 'idle');
-        }
-      } else {
-        const updated = await updateDividendsBatch();
-        if (updated > 0) {
-          await updateCrawlerState('update_dividends', 'idle');
-          // Recalculer les scores après mise à jour des dividendes
-          await calculateScores();
-        }
+      // Recalculer les scores (gratuit, pas d'appel API)
+      if (updated > 0) {
+        await calculateScores();
       }
     }
   } catch (err) {
@@ -320,34 +307,27 @@ async function runCrawlerCycle() {
 }
 
 // Utilitaires
-async function pause() {
-  return new Promise(resolve => setTimeout(resolve, CRAWLER_CONFIG.pauseBetweenRequests));
-}
-
-async function updateCrawlerState(taskName, status, lastSymbol = null, processed = null, total = null, error = null) {
+async function updateCrawlerState(taskName, status, lastSymbol = null, processed = null, total = null, errorMsg = null) {
   const sets = ['status = $2', 'last_run_at = NOW()', 'updated_at = NOW()'];
   const params = [taskName, status];
   let idx = 3;
-
   if (lastSymbol !== null) { sets.push(`last_symbol_processed = $${idx}`); params.push(lastSymbol); idx++; }
   if (processed !== null) { sets.push(`symbols_processed = $${idx}`); params.push(processed); idx++; }
   if (total !== null) { sets.push(`symbols_total = $${idx}`); params.push(total); idx++; }
-  if (error !== null) { sets.push(`error_message = $${idx}`); params.push(error); idx++; }
-
+  if (errorMsg !== null) { sets.push(`error_message = $${idx}`); params.push(errorMsg); idx++; }
   await pool.query(`UPDATE crawler_state SET ${sets.join(', ')} WHERE task_name = $1`, params);
 }
 
-// Démarrer le crawler
+// === API PUBLIQUE ===
 function startCrawler(config = {}) {
   Object.assign(CRAWLER_CONFIG, config);
-  
-  console.log(`[Crawler] 🕷️ Démarrage — ${CRAWLER_CONFIG.requestsPerMinute} req/min, pause ${CRAWLER_CONFIG.pauseBetweenRequests/1000}s`);
-  
-  // Premier cycle après 10s (laisser le serveur démarrer)
-  setTimeout(runCrawlerCycle, 10000);
-  
-  // Puis toutes les 20s
-  crawlerInterval = setInterval(runCrawlerCycle, 20000);
+  console.log(`[Crawler] 🕷️ Démarrage — budget ${CRAWLER_CONFIG.dailyBudget}/jour, ${CRAWLER_CONFIG.dividendBudget} pour dividendes`);
+  console.log(`[Crawler] ⏱️ Cycle toutes les ${CRAWLER_CONFIG.cycleInterval / 1000}s, batch de ${CRAWLER_CONFIG.batchSize}`);
+
+  // Premier cycle après 5s
+  setTimeout(runCrawlerCycle, 5000);
+  // Puis toutes les 5 min
+  crawlerInterval = setInterval(runCrawlerCycle, CRAWLER_CONFIG.cycleInterval);
 }
 
 function stopCrawler() {
@@ -357,15 +337,14 @@ function stopCrawler() {
 }
 
 function getCrawlerConfig() {
-  return CRAWLER_CONFIG;
+  return { ...CRAWLER_CONFIG, dailyCallCount, canMakeMoreCalls: canMakeCall() };
 }
 
 function setCrawlerConfig(config) {
   Object.assign(CRAWLER_CONFIG, config);
-  console.log('[Crawler] ⚙️ Config mise à jour:', CRAWLER_CONFIG);
 }
 
 module.exports = {
   startCrawler, stopCrawler, getCrawlerConfig, setCrawlerConfig,
-  collectSymbols, updateQuotesBatch, updateDividendsBatch, calculateScores,
+  collectSymbols, updateDividendsBatch, calculateScores,
 };
