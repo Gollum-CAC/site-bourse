@@ -76,8 +76,8 @@ function SuperDividendes() {
         <div>
           <h1>💎 Super Dividendes PEA</h1>
           <p className="page-subtitle">
-            Actions Euronext à haut rendement éligibles PEA, triées par score composite 
-            (rendement + régularité + croissance)
+            Actions Euronext éligibles PEA avec rendement &ge; 7%, triées par score composite.
+            Focus sur les dividendes élevés ET réguliers dans le temps.
           </p>
         </div>
         <Link to="/" className="back-link">← Retour</Link>
@@ -176,7 +176,7 @@ function SuperDividendes() {
                     </td>
                     <td className="sector-cell">{stock.sector}</td>
                     <td>{stock.price?.toFixed(2)} €</td>
-                    <td className="yield-cell" style={{ color: stock.currentYield >= 5 ? '#22c55e' : stock.currentYield >= 3 ? '#eab308' : '#e1e4e8' }}>
+                    <td className="yield-cell" style={{ color: stock.currentYield >= 10 ? '#4ade80' : stock.currentYield >= 7 ? '#22c55e' : '#eab308' }}>
                       {stock.currentYield}%
                     </td>
                     <td>{stock.avgYield}%</td>

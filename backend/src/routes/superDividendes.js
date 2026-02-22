@@ -8,36 +8,46 @@ const cache = require('../services/cacheService');
 // On les code en dur car le screener FMP a des limites sur le plan gratuit
 // Ces symboles sont les top dividendes Euronext historiquement fiables
 const PEA_DIVIDEND_STOCKS = [
-  // France - Gros rendements historiques
-  'TTE.PA',   // TotalEnergies ~5-6%
-  'BNP.PA',   // BNP Paribas ~6-7%
-  'GLE.PA',   // Société Générale ~6-8%
-  'ACA.PA',   // Crédit Agricole ~7-9%
-  'CS.PA',    // AXA ~5-6%
-  'DG.PA',    // Vinci ~3-4%
-  'SAN.PA',   // Sanofi ~3-4%
-  'AI.PA',    // Air Liquide ~2-3%
-  'SU.PA',    // Schneider Electric ~2%
-  'SGO.PA',   // Saint-Gobain ~3-4%
-  'VIV.PA',   // Vivendi ~2-3%
-  'EN.PA',    // Bouygues ~5-6%
-  'SW.PA',    // Sodexo ~3%
-  'ML.PA',    // Michelin ~3-4%
-  'CA.PA',    // Carrefour ~4-5%
-  'FP.PA',    // Coface ~8-10%
-  'TEP.PA',   // Teleperformance ~3%
-  'RNO.PA',   // Renault ~4-5%
-  'URW.PA',   // Unibail ~7-8%
-  'STM.PA',   // STMicroelectronics ~1-2%
+  // France - Banques / Assurances (gros payeurs)
+  'ACA.PA',   // Crédit Agricole ~8-10%
+  'GLE.PA',   // Société Générale ~7-9%
+  'BNP.PA',   // BNP Paribas ~7-8%
+  'CNP.PA',   // CNP Assurances ~7-9%
+  'COFA.PA',  // Coface ~9-12%
+  'CS.PA',    // AXA ~6-8%
+  'SCR.PA',   // SCOR ~7-9%
+  // France - Foncières (SIIC, hauts rendements)
+  'URW.PA',   // Unibail-Rodamco ~8-12%
+  'ICAD.PA',  // Icade ~8-12%
+  'ALTA.PA',  // Altarea ~8-12%
+  'LI.PA',    // Klepierre ~7-10%
+  'COVH.PA',  // Covivio Hotels ~7-9%
+  'CARM.PA',  // Carmila ~7-9%
+  'ARG.PA',   // Argan ~5-7%
+  'MER.PA',   // Mercialys ~8-12%
+  // France - Médias / Petites caps à gros dividende
+  'MMT.PA',   // Métropole TV (M6) ~8-12%
+  'TF1.PA',   // TF1 ~7-10%
+  'ABCA.PA',  // ABC Arbitrage ~8-10%
+  'CBOT.PA',  // CBO Territoria ~6-8%
+  // France - Industrie / Énergie / Autre
+  'TTE.PA',   // TotalEnergies ~5-7%
+  'EN.PA',    // Bouygues ~5-7%
+  'RNO.PA',   // Renault ~5-8%
+  'CA.PA',    // Carrefour ~5-7%
+  'FDJ.PA',   // FDJ ~5-7%
+  'SAMS.PA',  // Samse ~6-8%
+  'NERG.PA',  // Energéa ~7-10%
+  'BAIN.PA',  // Bassac ~6-8%
   // Pays-Bas
-  'INGA.AS',  // ING Group ~7-8%
-  'NN.AS',    // NN Group ~5-6%
-  'UNA.AS',   // Unilever ~3-4%
-  'AD.AS',    // Ahold Delhaize ~3-4%
-  'PHIA.AS',  // Philips ~2-3%
+  'INGA.AS',  // ING Group ~7-10%
+  'ABN.AS',   // ABN AMRO ~8-12%
+  'AGN.AS',   // Aegon ~7-10%
+  'NN.AS',    // NN Group ~7-9%
   // Belgique
-  'ABI.BR',   // AB InBev ~1-2%
-  'KBC.BR',   // KBC Group ~6-7%
+  'KBC.BR',   // KBC Group ~7-9%
+  'COFB.BR',  // Cofinimmo ~8-10%
+  'ACKB.BR',  // Ackermans & van Haaren ~4-6%
 ];
 
 // GET /api/dividendes/super - Top dividendes PEA avec analyse
@@ -140,7 +150,7 @@ async function analyzeStock(symbol) {
     const latestAnnualDiv = years[0]?.amount || 0;
     const currentYield = (latestAnnualDiv / quote.price) * 100;
 
-    if (currentYield < 1.5) return null; // Seuil minimum
+    if (currentYield < 7) return null; // Seuil minimum 7% : uniquement les gros rendements
 
     // Rendement moyen sur les années disponibles
     const avgDiv = years.reduce((sum, y) => sum + y.amount, 0) / years.length;
@@ -162,10 +172,10 @@ async function analyzeStock(symbol) {
 
     // Score composite (sur 100)
     // 40% rendement + 30% régularité + 20% croissance + 10% rendement moyen
-    const yieldScore = Math.min(currentYield / 10 * 40, 40);        // Max 40 pts (10%+ = max)
+    const yieldScore = Math.min(currentYield / 15 * 40, 40);        // Max 40 pts (15%+ = max)
     const regularityScore = regularity * 30;                         // Max 30 pts
     const growthScore = Math.min(Math.max(growth + 20, 0) / 40 * 20, 20); // Max 20 pts
-    const avgScore = Math.min(avgYield / 8 * 10, 10);               // Max 10 pts
+    const avgScore = Math.min(avgYield / 12 * 10, 10);              // Max 10 pts (12%+ = max)
     const score = Math.round(yieldScore + regularityScore + growthScore + avgScore);
 
     // Déterminer la tendance
