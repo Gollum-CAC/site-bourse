@@ -47,4 +47,38 @@ router.get('/profil/:symbol', async (req, res) => {
   }
 });
 
+// GET /api/actions/historique/:symbol - Historique des prix
+router.get('/historique/:symbol', async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const data = await fmpService.getHistoricalPrice(req.params.symbol.toUpperCase(), from, to);
+    res.json(data);
+  } catch (error) {
+    console.error('Erreur historique:', error.message);
+    res.status(500).json({ erreur: 'Impossible de récupérer l\'historique' });
+  }
+});
+
+// GET /api/actions/ratios/:symbol - Ratios financiers clés
+router.get('/ratios/:symbol', async (req, res) => {
+  try {
+    const data = await fmpService.getKeyMetrics(req.params.symbol.toUpperCase());
+    res.json(data);
+  } catch (error) {
+    console.error('Erreur ratios:', error.message);
+    res.status(500).json({ erreur: 'Impossible de récupérer les ratios' });
+  }
+});
+
+// GET /api/actions/ratios-ttm/:symbol - Ratios financiers TTM
+router.get('/ratios-ttm/:symbol', async (req, res) => {
+  try {
+    const data = await fmpService.getRatiosTTM(req.params.symbol.toUpperCase());
+    res.json(data);
+  } catch (error) {
+    console.error('Erreur ratios TTM:', error.message);
+    res.status(500).json({ erreur: 'Impossible de récupérer les ratios TTM' });
+  }
+});
+
 module.exports = router;

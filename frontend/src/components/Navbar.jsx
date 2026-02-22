@@ -9,6 +9,7 @@ function Navbar() {
         <Link to="/">Accueil</Link>
         <Link to="/cryptos">Cryptos</Link>
         <Link to="/news">Actualités</Link>
+        <Link to="/watchlist" className="watchlist-nav-link">⭐ Watchlist</Link>
       </div>
     </nav>
   );

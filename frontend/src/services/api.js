@@ -31,6 +31,32 @@ export async function getCompanyProfile(symbol) {
   return response.json();
 }
 
+// Récupérer l'historique des prix
+export async function getHistoricalPrice(symbol, from, to) {
+  let url = `${API_BASE}/actions/historique/${symbol}`;
+  const params = [];
+  if (from) params.push(`from=${from}`);
+  if (to) params.push(`to=${to}`);
+  if (params.length) url += `?${params.join('&')}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Erreur lors de la récupération de l\'historique');
+  return response.json();
+}
+
+// Récupérer les ratios financiers
+export async function getKeyMetrics(symbol) {
+  const response = await fetch(`${API_BASE}/actions/ratios/${symbol}`);
+  if (!response.ok) throw new Error('Erreur lors de la récupération des ratios');
+  return response.json();
+}
+
+// Récupérer les ratios TTM
+export async function getRatiosTTM(symbol) {
+  const response = await fetch(`${API_BASE}/actions/ratios-ttm/${symbol}`);
+  if (!response.ok) throw new Error('Erreur lors de la récupération des ratios TTM');
+  return response.json();
+}
+
 // --- CRYPTOMONNAIES ---
 
 // Récupérer les principales cryptos

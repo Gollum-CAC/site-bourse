@@ -32,4 +32,28 @@ async function getCompanyProfile(symbol) {
   return response.json();
 }
 
-module.exports = { getQuote, searchStock, getDividends, getCompanyProfile };
+// Récupérer l'historique des prix (cours journaliers)
+async function getHistoricalPrice(symbol, from, to) {
+  let url = `${FMP_BASE_URL}/historical-price-eod/full?symbol=${symbol}&apikey=${API_KEY}`;
+  if (from) url += `&from=${from}`;
+  if (to) url += `&to=${to}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
+  return response.json();
+}
+
+// Récupérer les ratios financiers
+async function getKeyMetrics(symbol) {
+  const response = await fetch(`${FMP_BASE_URL}/key-metrics?symbol=${symbol}&period=annual&limit=5&apikey=${API_KEY}`);
+  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
+  return response.json();
+}
+
+// Récupérer les ratios financiers TTM
+async function getRatiosTTM(symbol) {
+  const response = await fetch(`${FMP_BASE_URL}/ratios-ttm?symbol=${symbol}&apikey=${API_KEY}`);
+  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
+  return response.json();
+}
+
+module.exports = { getQuote, searchStock, getDividends, getCompanyProfile, getHistoricalPrice, getKeyMetrics, getRatiosTTM };

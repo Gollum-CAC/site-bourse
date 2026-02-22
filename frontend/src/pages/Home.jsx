@@ -19,6 +19,13 @@ function Home() {
     loadDefaultStocks();
     loadCryptos();
     loadNews();
+
+    // Rafraîchissement automatique toutes les 60 secondes
+    const interval = setInterval(() => {
+      loadDefaultStocks();
+      loadCryptos();
+    }, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   async function loadDefaultStocks() {
