@@ -468,6 +468,74 @@ body {
   font-weight: 600;
 }
 
+/* ===== PAGE DETAIL CRYPTO ===== */
+.crypto-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.crypto-detail-title img {
+  border-radius: 50%;
+}
+
+.crypto-description {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #21262d;
+}
+
+.crypto-description h4 {
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+  color: #c9d1d9;
+}
+
+.crypto-description p {
+  color: #8b949e;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.crypto-links {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #21262d;
+}
+
+.crypto-link-btn {
+  padding: 8px 16px;
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  color: #58a6ff;
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: background 0.2s;
+}
+
+.crypto-link-btn:hover {
+  background: #30363d;
+}
+
+.retry-button {
+  display: block;
+  margin: 20px auto;
+  padding: 10px 24px;
+  background: #238636;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.retry-button:hover {
+  background: #2ea043;
+}
+
 /* ===== PAGES ===== */
 .cryptos-page h1,
 .news-page h1 {
@@ -492,6 +560,55 @@ body {
 
 .app-footer a:hover {
   text-decoration: underline;
+}
+
+/* ===== DETAIL CRYPTO ===== */
+.crypto-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.crypto-detail-title img {
+  border-radius: 50%;
+}
+
+.crypto-links {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.crypto-ext-link {
+  color: #58a6ff;
+  text-decoration: none;
+  padding: 8px 16px;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.crypto-ext-link:hover {
+  border-color: #58a6ff;
+  background: #161b22;
+}
+
+.retry-button {
+  display: block;
+  margin: 20px auto;
+  padding: 10px 24px;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  background: #161b22;
+  color: #e1e4e8;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.retry-button:hover {
+  border-color: #58a6ff;
 }
 
 /* ===== RESPONSIVE ===== */

@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import StockDetail from './pages/StockDetail';
 import CryptosPage from './pages/CryptosPage';
+import CryptoDetail from './pages/CryptoDetail';
 import NewsPage from './pages/NewsPage';
 import './App.css';
 
@@ -17,6 +18,7 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/action/:symbol" element={<StockDetail />} />
             <Route path="/cryptos" element={<CryptosPage />} />
+            <Route path="/crypto/:id" element={<CryptoDetail />} />
             <Route path="/news" element={<NewsPage />} />
           </Routes>
         </main>

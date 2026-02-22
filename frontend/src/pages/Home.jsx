@@ -1,6 +1,6 @@
 // Page d'accueil - Tableau de bord principal
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import SearchBar from '../components/SearchBar';
 import StockCard from '../components/StockCard';
 import { getQuote, getCryptos, getNews } from '../services/api';
@@ -12,6 +12,7 @@ function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const navigate = useNavigate();
   const defaultSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'];
 
   useEffect(() => {
@@ -107,7 +108,7 @@ function Home() {
             {cryptos.map((crypto, index) => {
               const isPositive = crypto.price_change_percentage_24h >= 0;
               return (
-                <tr key={crypto.id} onClick={() => window.location.href = `/crypto/${crypto.id}`} style={{ cursor: 'pointer' }}>
+                <tr key={crypto.id} onClick={() => navigate(`/crypto/${crypto.id}`)} style={{ cursor: 'pointer' }}>
                   <td>{index + 1}</td>
                   <td className="crypto-name">
                     <img src={crypto.image} alt={crypto.name} width="24" height="24" />

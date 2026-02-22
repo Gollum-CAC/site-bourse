@@ -11,7 +11,8 @@ router.get('/', async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error('Erreur cryptos:', error.message);
-    res.status(500).json({ erreur: 'Impossible de récupérer les cryptos' });
+    console.error('Détail:', error);
+    res.status(500).json({ erreur: 'Impossible de récupérer les cryptos', detail: error.message });
   }
 });
 

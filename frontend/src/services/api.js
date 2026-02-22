@@ -40,6 +40,13 @@ export async function getCryptos(limit = 20) {
   return response.json();
 }
 
+// Récupérer les détails d'une crypto
+export async function getCryptoDetail(id) {
+  const response = await fetch(`${API_BASE}/cryptos/${id}`);
+  if (!response.ok) throw new Error('Erreur lors de la récupération des détails crypto');
+  return response.json();
+}
+
 // --- ACTUALITÉS ---
 
 // Récupérer les actualités financières
