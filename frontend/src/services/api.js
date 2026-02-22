@@ -3,16 +3,18 @@ const API_BASE = 'http://localhost:3001/api';
 
 // --- ACTIONS / BOURSE ---
 
-// Récupérer le cours d'une action
+// Récupérer le cours d'une action (US ou européenne)
 export async function getQuote(symbol) {
   const response = await fetch(`${API_BASE}/actions/quote/${symbol}`);
   if (!response.ok) throw new Error('Erreur lors de la récupération du cours');
   return response.json();
 }
 
-// Rechercher une action
-export async function searchStock(query) {
-  const response = await fetch(`${API_BASE}/actions/search?q=${query}`);
+// Rechercher une action avec filtre exchange optionnel
+export async function searchStock(query, exchange = '') {
+  let url = `${API_BASE}/actions/search?q=${query}`;
+  if (exchange) url += `&exchange=${exchange}`;
+  const response = await fetch(url);
   if (!response.ok) throw new Error('Erreur lors de la recherche');
   return response.json();
 }
@@ -54,6 +56,27 @@ export async function getKeyMetrics(symbol) {
 export async function getRatiosTTM(symbol) {
   const response = await fetch(`${API_BASE}/actions/ratios-ttm/${symbol}`);
   if (!response.ok) throw new Error('Erreur lors de la récupération des ratios TTM');
+  return response.json();
+}
+
+// Récupérer le compte de résultat
+export async function getIncomeStatement(symbol, period = 'annual') {
+  const response = await fetch(`${API_BASE}/actions/income/${symbol}?period=${period}`);
+  if (!response.ok) throw new Error('Erreur lors de la récupération du compte de résultat');
+  return response.json();
+}
+
+// Récupérer le bilan comptable
+export async function getBalanceSheet(symbol, period = 'annual') {
+  const response = await fetch(`${API_BASE}/actions/bilan/${symbol}?period=${period}`);
+  if (!response.ok) throw new Error('Erreur lors de la récupération du bilan');
+  return response.json();
+}
+
+// Récupérer le flux de trésorerie
+export async function getCashFlow(symbol, period = 'annual') {
+  const response = await fetch(`${API_BASE}/actions/cashflow/${symbol}?period=${period}`);
+  if (!response.ok) throw new Error('Erreur lors de la récupération du cash flow');
   return response.json();
 }
 

@@ -4,16 +4,18 @@ require('dotenv').config({ path: '../../.env' });
 const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
 const API_KEY = process.env.FMP_API_KEY;
 
-// Récupérer le cours d'une action (ex: AAPL, MSFT)
+// Récupérer le cours d'une action (ex: AAPL, MC.PA)
 async function getQuote(symbol) {
   const response = await fetch(`${FMP_BASE_URL}/quote?symbol=${symbol}&apikey=${API_KEY}`);
   if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
   return response.json();
 }
 
-// Rechercher une action par nom ou symbole
-async function searchStock(query) {
-  const response = await fetch(`${FMP_BASE_URL}/search?query=${query}&limit=10&apikey=${API_KEY}`);
+// Rechercher une action par nom ou symbole, avec filtre exchange optionnel
+async function searchStock(query, exchange = '') {
+  let url = `${FMP_BASE_URL}/search?query=${query}&limit=15&apikey=${API_KEY}`;
+  if (exchange) url += `&exchange=${exchange}`;
+  const response = await fetch(url);
   if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
   return response.json();
 }
@@ -25,7 +27,7 @@ async function getDividends(symbol) {
   return response.json();
 }
 
-// Récupérer le profil d'une entreprise (secteur, description, etc.)
+// Récupérer le profil d'une entreprise
 async function getCompanyProfile(symbol) {
   const response = await fetch(`${FMP_BASE_URL}/profile?symbol=${symbol}&apikey=${API_KEY}`);
   if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
@@ -42,7 +44,7 @@ async function getHistoricalPrice(symbol, from, to) {
   return response.json();
 }
 
-// Récupérer les ratios financiers
+// Récupérer les ratios financiers clés (annuels)
 async function getKeyMetrics(symbol) {
   const response = await fetch(`${FMP_BASE_URL}/key-metrics?symbol=${symbol}&period=annual&limit=5&apikey=${API_KEY}`);
   if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
@@ -56,4 +58,29 @@ async function getRatiosTTM(symbol) {
   return response.json();
 }
 
-module.exports = { getQuote, searchStock, getDividends, getCompanyProfile, getHistoricalPrice, getKeyMetrics, getRatiosTTM };
+// Récupérer le compte de résultat (income statement)
+async function getIncomeStatement(symbol, period = 'annual', limit = 5) {
+  const response = await fetch(`${FMP_BASE_URL}/income-statement?symbol=${symbol}&period=${period}&limit=${limit}&apikey=${API_KEY}`);
+  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
+  return response.json();
+}
+
+// Récupérer le bilan comptable (balance sheet)
+async function getBalanceSheet(symbol, period = 'annual', limit = 5) {
+  const response = await fetch(`${FMP_BASE_URL}/balance-sheet-statement?symbol=${symbol}&period=${period}&limit=${limit}&apikey=${API_KEY}`);
+  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
+  return response.json();
+}
+
+// Récupérer le flux de trésorerie (cash flow)
+async function getCashFlow(symbol, period = 'annual', limit = 5) {
+  const response = await fetch(`${FMP_BASE_URL}/cash-flow-statement?symbol=${symbol}&period=${period}&limit=${limit}&apikey=${API_KEY}`);
+  if (!response.ok) throw new Error(`Erreur FMP: ${response.status}`);
+  return response.json();
+}
+
+module.exports = {
+  getQuote, searchStock, getDividends, getCompanyProfile,
+  getHistoricalPrice, getKeyMetrics, getRatiosTTM,
+  getIncomeStatement, getBalanceSheet, getCashFlow
+};

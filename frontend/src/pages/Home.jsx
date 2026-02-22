@@ -13,7 +13,13 @@ function Home() {
   const [error, setError] = useState('');
 
   const navigate = useNavigate();
-  const defaultSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'];
+
+  // Actions US + Actions européennes PEA
+  const defaultSymbols = [
+    'AAPL', 'MSFT', 'GOOGL',       // US
+    'MC.PA', 'OR.PA', 'AI.PA',     // Euronext Paris (LVMH, L'Oréal, Air Liquide)
+    'TTE.PA', 'SAN.PA',            // TotalEnergies, Sanofi
+  ];
 
   useEffect(() => {
     loadDefaultStocks();
