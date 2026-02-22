@@ -34,7 +34,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Démarrage du serveur
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
   console.log(`📊 API Actions : http://localhost:${PORT}/api/actions`);
   console.log(`🪙 API Cryptos : http://localhost:${PORT}/api/cryptos`);

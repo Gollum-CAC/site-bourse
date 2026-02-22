@@ -148,6 +148,47 @@ Les dividendes ne sont re-fetchés que s'ils datent de **plus de 30 jours**. Apr
 **Monitoring :** `http://localhost:3001/api/health` affiche les stats du cache et du crawler.
 `http://localhost:3001/api/dividendes/stats` affiche le nombre d'actions, dividendes et analyses en base.
 
+## Partager le site avec un ami
+
+### Option 1 : Même réseau WiFi
+
+Si ton ami est sur le même WiFi, il suffit de lui donner ton IP locale :
+
+```bash
+# Trouver ton IP
+ipconfig
+# Chercher "Adresse IPv4" → ex: 192.168.1.42
+```
+
+Ton ami ouvre : `http://192.168.1.42:5173`
+
+### Option 2 : ngrok (depuis n'importe où)
+
+1. Installe ngrok : https://ngrok.com/download
+2. Crée un compte gratuit et connecte ton token : `ngrok config add-authtoken TON_TOKEN`
+3. Lance 2 tunnels (2 terminaux) :
+
+```bash
+# Terminal A — tunnel frontend
+ngrok http 5173
+
+# Terminal B — tunnel backend
+ngrok http 3001
+```
+
+4. Copie l'URL ngrok du **backend** (ex: `https://abc123.ngrok-free.app`)
+5. Crée un fichier `frontend/.env.local` :
+
+```
+VITE_API_URL=https://abc123.ngrok-free.app/api
+```
+
+6. Redémarre le frontend (`npm run dev`)
+7. Partage l'URL ngrok du **frontend** à ton ami
+
+> Note : le frontend détecte automatiquement si on est en local ou en réseau.
+> Sur le même WiFi, ça marche sans configuration supplémentaire.
+
 ## APIs utilisées
 
 - **[Financial Modeling Prep](https://financialmodelingprep.com)** — Actions, dividendes, ratios, bilans (1000 appels/jour)

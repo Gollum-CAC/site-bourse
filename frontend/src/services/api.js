@@ -1,5 +1,9 @@
 // Service pour communiquer avec notre backend API
-const API_BASE = 'http://localhost:3001/api';
+// Priorité : variable d'env (ngrok) > détection auto réseau > localhost
+const API_BASE = import.meta.env.VITE_API_URL
+  || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3001/api'
+    : `${window.location.protocol}//${window.location.hostname}:3001/api`);
 
 // ==========================================
 // === ACTIONS — DONNÉES DE BASE ===

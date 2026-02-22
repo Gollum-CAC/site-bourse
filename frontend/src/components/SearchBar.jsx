@@ -10,6 +10,8 @@ const MARKETS = [
   { label: '🇳🇱 Amsterdam', value: 'EURONEXT' },
   { label: '🇩🇪 Francfort', value: 'XETRA' },
   { label: '🇬🇧 Londres', value: 'LSE' },
+  { label: '🇯🇵 Tokyo', value: 'TSE' },
+  { label: '🇭🇰 Hong Kong', value: 'HKSE' },
 ];
 
 function SearchBar({ onSearch }) {
@@ -84,6 +86,10 @@ function SearchBar({ onSearch }) {
     if (ex.includes('MILAN') || ex.includes('BORSA')) return '🇮🇹';
     if (ex.includes('NASDAQ') || ex.includes('NYSE') || ex.includes('AMEX')) return '🇺🇸';
     if (ex.includes('TSX') || ex.includes('TORONTO')) return '🇨🇦';
+    if (ex.includes('TSE') || ex.includes('TOKYO') || ex.includes('JPX')) return '🇯🇵';
+    if (ex.includes('HKSE') || ex.includes('HONG KONG')) return '🇭🇰';
+    if (ex.includes('KRX') || ex.includes('KOREA')) return '🇰🇷';
+    if (ex.includes('SSE') || ex.includes('SHANGHAI') || ex.includes('SHENZHEN')) return '🇨🇳';
     return '🌐';
   }
 

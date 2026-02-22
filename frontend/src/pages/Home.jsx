@@ -4,13 +4,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import SearchBar from '../components/SearchBar';
 import { getQuote, getCryptos, getNews } from '../services/api';
 
-// Marchés avec listes d'actions par défaut triées par capitalisation
+// Marchés avec top 5 capitalisations par marché
 const STOCK_MARKETS = [
   { label: '🇺🇸 US', key: 'us', symbols: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA'] },
   { label: '🇫🇷 Paris', key: 'paris', symbols: ['MC.PA', 'OR.PA', 'RMS.PA', 'TTE.PA', 'AI.PA'] },
   { label: '🇳🇱 Amsterdam', key: 'amsterdam', symbols: ['ASML.AS', 'INGA.AS', 'PHIA.AS', 'UNA.AS', 'HEIA.AS'] },
   { label: '🇩🇪 Francfort', key: 'francfort', symbols: ['SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'MBG.DE'] },
   { label: '🇬🇧 Londres', key: 'london', symbols: ['SHEL.L', 'AZN.L', 'HSBA.L', 'ULVR.L', 'BP.L'] },
+  { label: '🇯🇵 Tokyo', key: 'tokyo', symbols: ['7203.T', '6758.T', '9984.T', '6861.T', '8306.T'] },
+  { label: '🇭🇰 Hong Kong', key: 'hk', symbols: ['0700.HK', '9988.HK', '1299.HK', '0005.HK', '2318.HK'] },
 ];
 
 function Home() {
@@ -20,24 +22,12 @@ function Home() {
   const [cryptos, setCryptos] = useState([]);
   const [news, setNews] = useState(null);
   const [error, setError] = useState('');
-
   const navigate = useNavigate();
 
+  useEffect(() => { loadCryptos(); loadNews(); }, []);
+  useEffect(() => { loadStocksForMarket(activeMarket); }, [activeMarket]);
   useEffect(() => {
-    loadCryptos();
-    loadNews();
-  }, []);
-
-  useEffect(() => {
-    loadStocksForMarket(activeMarket);
-  }, [activeMarket]);
-
-  // Auto-refresh toutes les 60s
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadStocksForMarket(activeMarket);
-      loadCryptos();
-    }, 60000);
+    const interval = setInterval(() => { loadStocksForMarket(activeMarket); loadCryptos(); }, 60000);
     return () => clearInterval(interval);
   }, [activeMarket]);
 
@@ -47,41 +37,22 @@ function Home() {
     const market = STOCK_MARKETS.find(m => m.key === marketKey);
     if (!market) { setStocksLoading(false); return; }
     try {
-      // Charger les quotes par petits lots pour éviter le rate limit FMP
       const allData = [];
       const batchSize = 2;
       for (let i = 0; i < market.symbols.length; i += batchSize) {
         const batch = market.symbols.slice(i, i + batchSize);
-        const results = await Promise.allSettled(
-          batch.map(symbol => getQuote(symbol))
-        );
-        results.forEach(r => {
-          if (r.status === 'fulfilled' && r.value?.[0]) {
-            allData.push(r.value[0]);
-          }
-        });
-        // Mettre à jour progressivement
+        const results = await Promise.allSettled(batch.map(s => getQuote(s)));
+        results.forEach(r => { if (r.status === 'fulfilled' && r.value?.[0]) allData.push(r.value[0]); });
         setStocks([...allData].sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0)));
-        // Petit délai entre les lots
-        if (i + batchSize < market.symbols.length) {
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
+        if (i + batchSize < market.symbols.length) await new Promise(r => setTimeout(r, 300));
       }
-    } catch (err) {
-      console.error('Erreur chargement actions:', err);
-    }
+    } catch (err) { console.error('Erreur chargement actions:', err); }
     setStocksLoading(false);
   }
 
-  async function loadCryptos() {
-    try { setCryptos(await getCryptos(5)); } catch (err) { console.error(err); }
-  }
+  async function loadCryptos() { try { setCryptos(await getCryptos(5)); } catch (e) { console.error(e); } }
+  async function loadNews() { try { setNews(await getNews()); } catch (e) { console.error(e); } }
 
-  async function loadNews() {
-    try { setNews(await getNews()); } catch (err) { console.error(err); }
-  }
-
-  // Formater la capitalisation
   function fmtCap(val) {
     if (!val) return 'N/A';
     if (val >= 1e12) return (val / 1e12).toFixed(2) + ' T';
@@ -90,10 +61,11 @@ function Home() {
     return val.toLocaleString('fr-FR');
   }
 
-  // Devise selon le marché
   function getCurrency(marketKey) {
     if (marketKey === 'us') return '$';
     if (marketKey === 'london') return '£';
+    if (marketKey === 'tokyo') return '¥';
+    if (marketKey === 'hk') return 'HK$';
     return '€';
   }
 
@@ -102,24 +74,13 @@ function Home() {
   return (
     <div className="home-page">
       <SearchBar />
-
       {error && <p className="error-message">{error}</p>}
 
-      {/* Section Actions par marché */}
       <section className="stocks-section">
-        <div className="section-header">
-          <h2>📊 Cours des actions</h2>
-        </div>
-
+        <div className="section-header"><h2>📊 Cours des actions</h2></div>
         <div className="stock-market-tabs">
           {STOCK_MARKETS.map(m => (
-            <button
-              key={m.key}
-              className={activeMarket === m.key ? 'market-tab-active' : ''}
-              onClick={() => setActiveMarket(m.key)}
-            >
-              {m.label}
-            </button>
+            <button key={m.key} className={activeMarket === m.key ? 'market-tab-active' : ''} onClick={() => setActiveMarket(m.key)}>{m.label}</button>
           ))}
         </div>
 
@@ -129,16 +90,7 @@ function Home() {
           <p className="no-data">Aucune donnée disponible. Vérifiez que le backend tourne sur localhost:3001.</p>
         ) : (
           <table className="stock-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Nom</th>
-                <th>Prix ({cur})</th>
-                <th>Variation</th>
-                <th>Cap. boursière</th>
-                <th>Volume</th>
-              </tr>
-            </thead>
+            <thead><tr><th>#</th><th>Nom</th><th>Prix ({cur})</th><th>Variation</th><th>Cap. boursière</th><th>Volume</th></tr></thead>
             <tbody>
               {stocks.map((stock, index) => {
                 const isPositive = stock.change >= 0;
@@ -163,22 +115,13 @@ function Home() {
         )}
       </section>
 
-      {/* Aperçu Cryptos */}
       <section className="crypto-section">
         <div className="section-header">
           <h2>🪙 Cryptomonnaies</h2>
           <Link to="/cryptos" className="see-all">Voir tout →</Link>
         </div>
         <table className="crypto-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Nom</th>
-              <th>Prix (EUR)</th>
-              <th>Variation 24h</th>
-              <th>Cap. marché</th>
-            </tr>
-          </thead>
+          <thead><tr><th>#</th><th>Nom</th><th>Prix (EUR)</th><th>Variation 24h</th><th>Cap. marché</th></tr></thead>
           <tbody>
             {cryptos.map((crypto, index) => {
               const isPositive = crypto.price_change_percentage_24h >= 0;
@@ -202,7 +145,6 @@ function Home() {
         </table>
       </section>
 
-      {/* Aperçu News */}
       {news?.articles && (
         <section className="news-section">
           <div className="section-header">
