@@ -373,8 +373,74 @@ async function getStatsDB() {
   } catch { return {}; }
 }
 
+// ============================================
+// === BATCH QUOTES (optimisation Home) ===
+// ============================================
+
+/**
+ * Récupère plusieurs quotes en 1 ou 2 appels max :
+ * 1. Lit tous les symboles demandés en DB en une seule requête
+ * 2. Pour les manquants/périmés, fait 1 seul appel FMP batch
+ */
+async function getBatchQuotes(symbols) {
+  if (!symbols || symbols.length === 0) return [];
+
+  const resultats = {};
+  const aRafraichir = [];
+
+  try {
+    // Étape 1 : lire tout depuis la DB en une seule requête
+    const placeholders = symbols.map((_, i) => `${i + 1}`).join(',');
+    const { rows } = await pool.query(`
+      SELECT q.*, s.name AS stock_name
+      FROM stock_quotes q
+      LEFT JOIN stocks s ON s.symbol = q.symbol
+      WHERE q.symbol IN (${placeholders})
+    `, symbols);
+
+    // Indexer par symbole
+    const dbMap = {};
+    rows.forEach(r => { dbMap[r.symbol] = r; });
+
+    // Trier : frais en cache, périmés/manquants à rafraîchir
+    for (const sym of symbols) {
+      const row = dbMap[sym];
+      if (row && !estPerime(row.updated_at, FRESHNESS.quote)) {
+        resultats[sym] = formatQuoteFromDB(row, sym);
+      } else {
+        aRafraichir.push(sym);
+      }
+    }
+  } catch (dbErr) {
+    console.warn('[DB] Batch read échoué:', dbErr.message);
+    aRafraichir.push(...symbols);
+  }
+
+  // Étape 2 : 1 seul appel FMP pour tous les symboles périmés
+  if (aRafraichir.length > 0) {
+    try {
+      const batchData = await fmpService.getBatchQuotes(aRafraichir);
+      const quotes = Array.isArray(batchData) ? batchData : [];
+
+      // Sauvegarder et indexer
+      for (const q of quotes) {
+        if (q && q.symbol) {
+          await sauvegarderQuote(q.symbol, q);
+          resultats[q.symbol] = q;
+        }
+      }
+    } catch (fmpErr) {
+      console.warn('[FMP] Batch quotes échoué:', fmpErr.message);
+    }
+  }
+
+  // Retourner dans l'ordre demandé, ignorer les symboles sans données
+  return symbols.map(sym => resultats[sym]).filter(Boolean);
+}
+
 module.exports = {
   getQuote, sauvegarderQuote,
+  getBatchQuotes,
   getProfile, sauvegarderProfile,
   getRatiosTTM, sauvegarderRatios,
   getStatsDB,

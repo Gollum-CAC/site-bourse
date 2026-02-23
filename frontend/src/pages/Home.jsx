@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SearchBar from '../components/SearchBar';
-import { getQuote, getCryptos, getNews } from '../services/api';
+import { getBatchQuotes, getCryptos, getNews } from '../services/api';
 
 const STOCK_MARKETS = [
   { label: '🇺🇸 US',          key: 'us',        symbols: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA'] },
@@ -48,13 +48,9 @@ function Home() {
 
   async function loadTicker() {
     try {
-      const results = await Promise.allSettled(
-        TICKER_SYMBOLS.map(s => getQuote(s))
-      );
-      const data = results
-        .filter(r => r.status === 'fulfilled' && r.value?.[0])
-        .map(r => r.value[0]);
-      setTickerData(data);
+      // 1 seul appel FMP pour tous les symboles du ticker
+      const data = await getBatchQuotes(TICKER_SYMBOLS);
+      setTickerData(Array.isArray(data) ? data : []);
     } catch {}
   }
 
@@ -65,23 +61,18 @@ function Home() {
     const market = STOCK_MARKETS.find(m => m.key === marketKey);
     if (!market) { setStocksLoading(false); return; }
 
-    // Timeout 10s : si le backend ne répond pas, on affiche une erreur claire
+    // Timeout 12s
     const timeout = setTimeout(() => {
       setStocksLoading(false);
       setStocksErreur('Le backend ne répond pas. Vérifiez que le serveur tourne sur localhost:3001.');
-    }, 10000);
+    }, 12000);
 
     try {
-      const allData = [];
-      for (let i = 0; i < market.symbols.length; i += 2) {
-        const batch = market.symbols.slice(i, i + 2);
-        const results = await Promise.allSettled(batch.map(s => getQuote(s)));
-        results.forEach(r => {
-          if (r.status === 'fulfilled' && r.value?.[0]) allData.push(r.value[0]);
-        });
-        setStocks([...allData].sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0)));
-        if (i + 2 < market.symbols.length) await new Promise(r => setTimeout(r, 300));
-      }
+      // 1 seul appel batch pour tout le marché (5 symboles → 1 requête FMP)
+      const data = await getBatchQuotes(market.symbols);
+      const sorted = (Array.isArray(data) ? data : [])
+        .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0));
+      setStocks(sorted);
       clearTimeout(timeout);
     } catch (err) {
       clearTimeout(timeout);

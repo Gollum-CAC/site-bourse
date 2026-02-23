@@ -1,7 +1,12 @@
 // Service pour communiquer avec notre backend API
 // En local : appel direct localhost:3001
-// En réseau/ngrok : les requêtes /api passent par le proxy Vite
-const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+// Via ngrok/réseau : on cherche le backend sur le même host mais port 3001
+// (ngrok expose le frontend sur 5173, le backend tourne séparément sur 3001)
+const hostname = window.location.hostname;
+const isLocal  = hostname === 'localhost' || hostname === '127.0.0.1';
+
+// En local : direct localhost:3001
+// Via ngrok/IP réseau : Vite proxifie /api → backend (cf. vite.config.js)
 const API_BASE = isLocal ? 'http://localhost:3001/api' : '/api';
 
 // ==========================================
@@ -11,6 +16,14 @@ const API_BASE = isLocal ? 'http://localhost:3001/api' : '/api';
 export async function getQuote(symbol) {
   const response = await fetch(`${API_BASE}/actions/quote/${symbol}`);
   if (!response.ok) throw new Error('Erreur lors de la récupération du cours');
+  return response.json();
+}
+
+// Batch quotes — 1 seul appel pour plusieurs symboles
+export async function getBatchQuotes(symbols) {
+  if (!symbols || symbols.length === 0) return [];
+  const response = await fetch(`${API_BASE}/actions/quotes?symbols=${symbols.join(',')}`);
+  if (!response.ok) throw new Error('Erreur batch quotes');
   return response.json();
 }
 

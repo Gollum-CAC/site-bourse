@@ -55,8 +55,16 @@ async function fmpFetch(endpoint, cacheKey, ttl = cache.DEFAULT_TTL) {
 // === DONNÉES DE BASE ===
 // ==========================================
 
+// Quote simple
 async function getQuote(symbol) {
   return fmpFetch(`quote?symbol=${symbol}`, `quote:${symbol}`, 300);
+}
+
+// Batch quotes — 1 seul appel FMP pour plusieurs symboles (ex: AAPL,MSFT,GOOGL)
+async function getBatchQuotes(symbols) {
+  if (!symbols || symbols.length === 0) return [];
+  const list = symbols.join(',');
+  return fmpFetch(`quote?symbol=${list}`, `batchQuote:${list}`, 300);
 }
 
 async function searchStock(query, exchange = '') {
@@ -215,7 +223,7 @@ async function getPressReleases(symbol, limit = 10) {
 
 module.exports = {
   // Base
-  getQuote, searchStock, getCompanyProfile, getHistoricalPrice, getStockScreener,
+  getQuote, getBatchQuotes, searchStock, getCompanyProfile, getHistoricalPrice, getStockScreener,
   // Ratios
   getKeyMetrics, getRatiosTTM,
   // États financiers

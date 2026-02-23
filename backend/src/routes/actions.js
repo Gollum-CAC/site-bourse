@@ -21,6 +21,22 @@ router.get('/quote/:symbol', async (req, res) => {
   }
 });
 
+// GET /api/actions/quotes?symbols=AAPL,MSFT,GOOGL — Batch quotes (1 appel FMP max)
+router.get('/quotes', async (req, res) => {
+  try {
+    const symbols = (req.query.symbols || '')
+      .split(',')
+      .map(s => s.trim().toUpperCase())
+      .filter(Boolean)
+      .slice(0, 20); // max 20 symboles par appel
+    if (symbols.length === 0) return res.json([]);
+    res.json(await dbService.getBatchQuotes(symbols));
+  } catch (e) {
+    console.error('Erreur batch quotes:', e.message);
+    res.status(500).json({ erreur: 'Impossible de récupérer les cours' });
+  }
+});
+
 // GET /api/actions/search?q=apple&exchange=EURONEXT
 router.get('/search', async (req, res) => {
   try {
