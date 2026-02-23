@@ -3,14 +3,14 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 const LIENS = [
-  { to: '/',                label: 'Accueil',    className: '' },
-  { to: '/screener',        label: '🔍 Screener',  className: 'screener-nav-link' },
-  { to: '/super-dividendes',label: '💎 Super Div.',className: 'super-div-nav-link' },
-  { to: '/calendrier',      label: '📅 Calendrier',className: 'calendrier-nav-link' },
-  { to: '/cryptos',         label: 'Cryptos',    className: '' },
-  { to: '/news',            label: 'Actualités', className: '' },
-  { to: '/watchlist',       label: '⭐ Watchlist', className: 'watchlist-nav-link' },
-  { to: '/db-status',       label: '🖥️ DB',          className: 'db-status-nav-link' },
+  { to: '/',                 label: 'Accueil',      icone: '🏠', className: '' },
+  { to: '/screener',         label: 'Screener',     icone: '🔍', className: 'screener-nav-link' },
+  { to: '/super-dividendes', label: 'Super Div.',   icone: '💎', className: 'super-div-nav-link' },
+  { to: '/calendrier',       label: 'Calendrier',   icone: '📅', className: 'calendrier-nav-link' },
+  { to: '/cryptos',          label: 'Cryptos',      icone: '₿',  className: '' },
+  { to: '/news',             label: 'Actualités',   icone: '📰', className: '' },
+  { to: '/watchlist',        label: 'Watchlist',    icone: '⭐', className: 'watchlist-nav-link' },
+  { to: '/db-status',        label: 'DB',           icone: '🖥️', className: 'db-status-nav-link' },
 ];
 
 function Navbar() {
@@ -20,15 +20,16 @@ function Navbar() {
   // Fermer le menu si on navigue
   useEffect(() => { setMenuOuvert(false); }, [location.pathname]);
 
-  // Fermer le menu si on clique en dehors
+  // Bloquer le scroll body quand le menu est ouvert
   useEffect(() => {
-    if (!menuOuvert) return;
-    const fermer = (e) => {
-      if (!e.target.closest('.navbar')) setMenuOuvert(false);
-    };
-    document.addEventListener('click', fermer);
-    return () => document.removeEventListener('click', fermer);
+    document.body.style.overflow = menuOuvert ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
   }, [menuOuvert]);
+
+  // Fermer le menu si on clique sur l'overlay
+  function handleOverlayClick(e) {
+    if (e.target === e.currentTarget) setMenuOuvert(false);
+  }
 
   function estActif(to) {
     if (to === '/') return location.pathname === '/';
@@ -36,35 +37,74 @@ function Navbar() {
   }
 
   return (
-    <nav className="navbar">
-      <Link to="/" className="navbar-brand">Site Bourse</Link>
+    <>
+      <nav className="navbar">
+        <Link to="/" className="navbar-brand">Site Bourse</Link>
 
-      {/* Liens desktop */}
-      <div className={`navbar-links ${menuOuvert ? 'open' : ''}`}>
-        {LIENS.map(({ to, label, className }) => (
-          <Link
-            key={to}
-            to={to}
-            className={[
-              className,
-              estActif(to) ? 'active-nav' : '',
-            ].filter(Boolean).join(' ')}
-          >
-            {label}
-          </Link>
-        ))}
-      </div>
+        {/* Liens desktop (masqués sur mobile) */}
+        <div className="navbar-links">
+          {LIENS.map(({ to, label, className }) => (
+            <Link
+              key={to}
+              to={to}
+              className={[className, estActif(to) ? 'active-nav' : ''].filter(Boolean).join(' ')}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
 
-      {/* Bouton hamburger mobile */}
-      <button
-        className={`navbar-hamburger ${menuOuvert ? 'open' : ''}`}
-        onClick={() => setMenuOuvert(v => !v)}
-        aria-label="Menu"
-        aria-expanded={menuOuvert}
-      >
-        <span /><span /><span />
-      </button>
-    </nav>
+        {/* Bouton hamburger mobile — 3 barres → ✕ via CSS */}
+        <button
+          className={`navbar-hamburger ${menuOuvert ? 'open' : ''}`}
+          onClick={() => setMenuOuvert(v => !v)}
+          aria-label={menuOuvert ? 'Fermer le menu' : 'Ouvrir le menu'}
+          aria-expanded={menuOuvert}
+        >
+          <span /><span /><span />
+        </button>
+      </nav>
+
+      {/* Overlay + Drawer mobile — EN DEHORS de <nav> pour couvrir tout l'écran */}
+      {menuOuvert && (
+        <div className="mobile-menu-overlay" onClick={handleOverlayClick}>
+          <div className="mobile-menu-drawer">
+            {/* Header du drawer */}
+            <div className="mobile-menu-header">
+              <span className="mobile-menu-title">
+                <span className="navbar-brand-dot" /> Site Bourse
+              </span>
+              <button
+                className="mobile-menu-close"
+                onClick={() => setMenuOuvert(false)}
+                aria-label="Fermer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Liste des liens */}
+            <nav className="mobile-menu-nav">
+              {LIENS.map(({ to, label, icone, className }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className={[
+                    'mobile-menu-link',
+                    className,
+                    estActif(to) ? 'mobile-menu-link-active' : '',
+                  ].filter(Boolean).join(' ')}
+                >
+                  <span className="mobile-menu-icone">{icone}</span>
+                  <span className="mobile-menu-label">{label}</span>
+                  {estActif(to) && <span className="mobile-menu-active-dot" />}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
