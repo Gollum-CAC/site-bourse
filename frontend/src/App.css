@@ -219,6 +219,7 @@ body {
 .screener-nav-link    { color: var(--green-light) !important; }
 .calendrier-nav-link  { color: var(--blue-light) !important; }
 .super-div-nav-link   { color: var(--purple) !important; }
+.db-status-nav-link   { color: var(--text-muted) !important; font-size: 0.78rem !important; }
 
 /* Hamburger mobile */
 .navbar-hamburger {

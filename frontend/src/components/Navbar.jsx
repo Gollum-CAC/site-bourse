@@ -10,6 +10,7 @@ const LIENS = [
   { to: '/cryptos',         label: 'Cryptos',    className: '' },
   { to: '/news',            label: 'Actualités', className: '' },
   { to: '/watchlist',       label: '⭐ Watchlist', className: 'watchlist-nav-link' },
+  { to: '/db-status',       label: '🖥️ DB',          className: 'db-status-nav-link' },
 ];
 
 function Navbar() {

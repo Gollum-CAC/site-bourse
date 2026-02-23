@@ -10,6 +10,7 @@ import Watchlist from './pages/Watchlist';
 import SuperDividendes from './pages/SuperDividendes';
 import CalendrierFinancier from './pages/CalendrierFinancier';
 import ScreenerPage from './pages/ScreenerPage';
+import DbStatus from './pages/DbStatus';
 import './App.css';
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
             <Route path="/super-dividendes"  element={<SuperDividendes />} />
             <Route path="/calendrier"        element={<CalendrierFinancier />} />
             <Route path="/screener"          element={<ScreenerPage />} />
+            <Route path="/db-status"         element={<DbStatus />} />
           </Routes>
         </main>
 
