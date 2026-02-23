@@ -109,9 +109,12 @@ function StockDetail() {
     : '$';
 
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 12, color: 'var(--text-muted)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 12, color: 'var(--text-muted)' }}>
       <span style={{ fontSize: '1.4rem' }}>⏳</span>
       <span>Chargement de {symbol}…</span>
+      <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: 8 }}>
+        Si le chargement dure trop longtemps, vérifiez que le backend tourne sur le port 3001.
+      </span>
     </div>
   );
 

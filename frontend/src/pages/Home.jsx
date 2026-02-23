@@ -21,6 +21,7 @@ function Home() {
   const [activeMarket, setActiveMarket]         = useState('us');
   const [stocks, setStocks]                     = useState([]);
   const [stocksLoading, setStocksLoading]       = useState(false);
+  const [stocksErreur, setStocksErreur]         = useState('');
   const [cryptos, setCryptos]                   = useState([]);
   const [news, setNews]                         = useState(null);
   const [tickerData, setTickerData]             = useState([]);
@@ -60,8 +61,16 @@ function Home() {
   async function loadStocksForMarket(marketKey) {
     setStocksLoading(true);
     setStocks([]);
+    setStocksErreur('');
     const market = STOCK_MARKETS.find(m => m.key === marketKey);
     if (!market) { setStocksLoading(false); return; }
+
+    // Timeout 10s : si le backend ne répond pas, on affiche une erreur claire
+    const timeout = setTimeout(() => {
+      setStocksLoading(false);
+      setStocksErreur('Le backend ne répond pas. Vérifiez que le serveur tourne sur localhost:3001.');
+    }, 10000);
+
     try {
       const allData = [];
       for (let i = 0; i < market.symbols.length; i += 2) {
@@ -73,7 +82,12 @@ function Home() {
         setStocks([...allData].sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0)));
         if (i + 2 < market.symbols.length) await new Promise(r => setTimeout(r, 300));
       }
-    } catch (err) { console.error(err); }
+      clearTimeout(timeout);
+    } catch (err) {
+      clearTimeout(timeout);
+      console.error(err);
+      setStocksErreur(`Erreur réseau : ${err.message}`);
+    }
     setStocksLoading(false);
   }
 
@@ -171,10 +185,15 @@ function Home() {
           ))}
         </div>
 
-        {stocksLoading && stocks.length === 0 ? (
+        {stocksErreur ? (
+          <div className="erreur-backend">
+            <span>⚠️ {stocksErreur}</span>
+            <button onClick={() => loadStocksForMarket(activeMarket)} className="retry-btn">Réessayer</button>
+          </div>
+        ) : stocksLoading && stocks.length === 0 ? (
           <p className="loading">⏳ Chargement...</p>
         ) : stocks.length === 0 && !stocksLoading ? (
-          <p className="no-data">Aucune donnée. Vérifiez que le backend tourne sur localhost:3001.</p>
+          <p className="no-data">Aucune donnée disponible.</p>
         ) : (
           <table className="stock-table">
             <thead>

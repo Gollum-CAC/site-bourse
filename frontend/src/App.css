@@ -782,6 +782,20 @@ body {
 .loading { text-align: center; color: var(--text-muted); margin: 40px 0; font-size: 0.95rem; }
 .no-data { text-align: center; color: var(--text-muted); padding: 40px 0; }
 
+.erreur-backend {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 20px; margin: 12px 0;
+  background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
+  border-radius: var(--radius-md); color: var(--red-light); font-size: 0.88rem;
+  flex-wrap: wrap; text-align: center;
+}
+.retry-btn {
+  padding: 6px 16px; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4);
+  border-radius: var(--radius-sm); color: var(--red-light); cursor: pointer;
+  font-size: 0.82rem; font-weight: 600; transition: all 0.15s; white-space: nowrap;
+}
+.retry-btn:hover { background: rgba(239,68,68,0.25); }
+
 /* ===== PAGE SUBTITLE ===== */
 .page-subtitle { color: var(--text-secondary); margin-bottom: 20px; font-size: 0.9rem; }
 .last-update { color: var(--text-muted); font-size: 0.78rem; }
