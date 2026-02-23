@@ -4,14 +4,16 @@ import { useParams, Link } from 'react-router-dom';
 import { getQuote, getCompanyProfile, getDividends, getHistoricalPrice, getKeyMetrics, getRatiosTTM, getIncomeStatement, getBalanceSheet, getCashFlow } from '../services/api';
 import PriceChart from '../components/PriceChart';
 
-const PERIODS = [
-  { label: '1S', days: 7   },
-  { label: '1M', days: 30  },
-  { label: '3M', days: 90  },
-  { label: '6M', days: 180 },
-  { label: '1A', days: 365 },
-  { label: '5A', days: 1825 },
-];
+// Mapping timeframes → jours pour l'appel API
+const TF_DAYS = {
+  '1D':  1,
+  '1W':  7,
+  '1M':  30,
+  '3M':  90,
+  '6M':  180,
+  '1Y':  365,
+  '5Y':  1825,
+};
 
 function StockDetail() {
   const { symbol } = useParams();
@@ -26,12 +28,12 @@ function StockDetail() {
   const [cashFlow, setCashFlow]         = useState([]);
   const [financialPeriod, setFinancialPeriod] = useState('annual');
   const [loading, setLoading]           = useState(true);
-  const [selectedPeriod, setSelectedPeriod]   = useState(PERIODS[2]);
-  const [isInWatchlist, setIsInWatchlist]     = useState(false);
+  const [timeframe, setTimeframe]         = useState('3M'); // timeframe actif
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [activeTab, setActiveTab]       = useState('graphique');
 
   useEffect(() => { loadData(); checkWatchlist(); }, [symbol]);
-  useEffect(() => { loadChartData(); }, [symbol, selectedPeriod]);
+  useEffect(() => { loadChartData(); }, [symbol, timeframe]);
   useEffect(() => { if (activeTab === 'financials') loadFinancials(); }, [activeTab, financialPeriod, symbol]);
 
   function checkWatchlist() {
@@ -66,9 +68,10 @@ function StockDetail() {
 
   async function loadChartData() {
     try {
-      const to = new Date().toISOString().split('T')[0];
-      const f  = new Date(); f.setDate(f.getDate() - selectedPeriod.days);
-      const data = await getHistoricalPrice(symbol, f.toISOString().split('T')[0], to);
+      const to   = new Date().toISOString().split('T')[0];
+      const from = new Date();
+      from.setDate(from.getDate() - (TF_DAYS[timeframe] || 90));
+      const data = await getHistoricalPrice(symbol, from.toISOString().split('T')[0], to);
       setChartData(Array.isArray(data) ? data : data?.historical || []);
     } catch { setChartData([]); }
   }
@@ -218,32 +221,26 @@ function StockDetail() {
       ════════════════════════════════ */}
       {activeTab === 'graphique' && (
         <div className="detail-card">
-          <div className="chart-header">
-            <h3 style={{ textTransform: 'none', fontSize: '1rem', color: 'var(--text-primary)' }}>
-              Historique des prix — {quote.name}
-            </h3>
-            <div className="period-buttons">
-              {PERIODS.map(p => (
-                <button key={p.label}
-                  className={selectedPeriod.label === p.label ? 'period-active' : ''}
-                  onClick={() => setSelectedPeriod(p)}>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <PriceChart data={chartData} period={selectedPeriod} />
-          <div className="market-data-grid">
+          {/* Graphique principal */}
+          <PriceChart
+            data={chartData}
+            symbol={symbol}
+            currency={cur}
+            onTimeframeChange={setTimeframe}
+          />
+
+          {/* Données marché sous le graphique */}
+          <div className="market-data-grid" style={{ marginTop: 20 }}>
             {[
-              ['Ouverture',    `${fmt(quote.open)} ${cur}`],
-              ['Haut (jour)',  `${fmt(quote.dayHigh)} ${cur}`],
-              ['Bas (jour)',   `${fmt(quote.dayLow)} ${cur}`],
-              ['Haut (52s)',   `${fmt(quote.yearHigh)} ${cur}`],
-              ['Bas (52s)',    `${fmt(quote.yearLow)} ${cur}`],
-              ['Volume',       quote.volume?.toLocaleString('fr-FR') || '—'],
-              ['Cap. bours.',  `${fmtAmt(quote.marketCap)} ${cur}`],
-              ['Moy. 50j',    `${fmt(quote.priceAvg50)} ${cur}`],
-              ['Moy. 200j',   `${fmt(quote.priceAvg200)} ${cur}`],
+              ['Ouverture',   `${fmt(quote.open)} ${cur}`],
+              ['Haut (jour)', `${fmt(quote.dayHigh)} ${cur}`],
+              ['Bas (jour)',  `${fmt(quote.dayLow)} ${cur}`],
+              ['Haut (52s)',  `${fmt(quote.yearHigh)} ${cur}`],
+              ['Bas (52s)',   `${fmt(quote.yearLow)} ${cur}`],
+              ['Volume',      quote.volume?.toLocaleString('fr-FR') || '—'],
+              ['Cap. bours.', `${fmtAmt(quote.marketCap)} ${cur}`],
+              ['Moy. 50j',   `${fmt(quote.priceAvg50)} ${cur}`],
+              ['Moy. 200j',  `${fmt(quote.priceAvg200)} ${cur}`],
             ].map(([label, value]) => (
               <div key={label} className="market-data-item">
                 <span>{label}</span>

@@ -1100,42 +1100,155 @@ body {
 .detail-row span:first-child { color: var(--text-secondary); }
 .detail-row span:last-child { color: var(--text-primary); font-weight: 600; font-family: var(--font-mono); }
 
-/* ===== GRAPHIQUE ===== */
-.price-chart-container { border-radius: var(--radius-md); overflow: hidden; margin: 12px 0; }
-
-.chart-header {
+/* ===== GRAPHIQUE LIGHTWEIGHT CHARTS ===== */
+.lwc-chart-wrapper {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 10px;
 }
 
-.chart-header h3 { font-size: 0.95rem; color: var(--text-primary); }
+/* ── Barre de contrôles (switch mode + variation) ── */
+.lwc-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
 
-.period-buttons { display: flex; gap: 4px; }
-
-.period-buttons button {
-  padding: 5px 12px;
+/* Switch Courbe / Bougies */
+.lwc-mode-switch {
+  display: flex;
   background: var(--bg-overlay);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 600;
-  transition: all 0.15s;
-  font-family: var(--font-mono);
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.period-buttons button:hover { background: var(--bg-input); color: var(--text-primary); }
+.lwc-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
 
-.period-buttons .period-active {
+.lwc-mode-btn:hover { background: var(--bg-input); color: var(--text-secondary); }
+
+.lwc-mode-btn.active {
+  background: var(--blue-dim);
+  color: var(--blue-light);
+}
+
+/* Variation % */
+.lwc-variation {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+}
+.lwc-variation.pos {
+  color: var(--green-light);
+  background: var(--green-dim);
+  border-color: rgba(16,185,129,0.3);
+}
+.lwc-variation.neg {
+  color: var(--red-light);
+  background: var(--red-dim);
+  border-color: rgba(239,68,68,0.3);
+}
+
+/* Prix au survol */
+.lwc-hover-price {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--blue-light);
+  margin-left: auto;
+  padding: 4px 10px;
+  background: var(--blue-dim);
+  border: 1px solid rgba(59,130,246,0.3);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Timeframes ── */
+.lwc-timeframes {
+  display: flex;
+  gap: 3px;
+}
+
+.lwc-tf-btn {
+  padding: 5px 11px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  transition: all 0.15s;
+}
+
+.lwc-tf-btn:hover { background: var(--bg-input); color: var(--text-secondary); }
+
+.lwc-tf-btn.active {
   background: var(--blue-dim);
   border-color: rgba(59,130,246,0.4);
   color: var(--blue-light);
 }
+
+/* ── Container chart ── */
+.lwc-container {
+  width: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+/* ── État vide ── */
+.lwc-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 200px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  background: var(--bg-overlay);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+/* ── Légende bas de graphique ── */
+.lwc-legende {
+  display: flex;
+  gap: 18px;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Ancien .price-chart-container conservé pour compat */
+.price-chart-container { border-radius: var(--radius-md); overflow: hidden; margin: 12px 0; }
+.period-buttons { display: flex; gap: 4px; }
+.period-buttons button {
+  padding: 5px 12px; background: var(--bg-overlay); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-secondary); cursor: pointer;
+  font-size: 0.78rem; font-weight: 600; transition: all 0.15s; font-family: var(--font-mono);
+}
+.period-buttons button:hover { background: var(--bg-input); color: var(--text-primary); }
+.period-buttons .period-active { background: var(--blue-dim); border-color: rgba(59,130,246,0.4); color: var(--blue-light); }
 
 /* Données marché sous graphique */
 .market-data-grid {
@@ -1885,6 +1998,18 @@ body {
   .cal-evts-labels { display: none; } /* labels trop longs, garder seulement dots */
   .legende-info { margin-left: 0; }
   .cal-legende { flex-wrap: wrap; gap: 10px; }
+
+  /* ── Graphique ── */
+  .lwc-timeframes {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .lwc-timeframes::-webkit-scrollbar { display: none; }
+  .lwc-tf-btn { flex-shrink: 0; padding: 5px 9px; font-size: 0.74rem; }
+  .lwc-legende { display: none; } /* trop verbeux sur mobile */
+  .lwc-hover-price { margin-left: 0; }
 
   /* ── Page DB Status ── */
   .detail-card { padding: 14px; }
