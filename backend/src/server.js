@@ -28,11 +28,16 @@ app.use('/api/screener', screenerRoutes);
 app.get('/api/health', async (req, res) => {
   const cacheStats = require('./services/cacheService').stats();
   let crawlerStats = null;
+  let dbStats = null;
   try {
     const { getCrawlerConfig } = require('./crawler');
     crawlerStats = getCrawlerConfig();
   } catch (e) {}
-  res.json({ status: 'ok', message: 'Site Bourse API fonctionne !', cache: cacheStats, crawler: crawlerStats });
+  try {
+    const { getStatsDB } = require('./services/dbService');
+    dbStats = await getStatsDB();
+  } catch (e) {}
+  res.json({ status: 'ok', message: 'Site Bourse API fonctionne !', cache: cacheStats, crawler: crawlerStats, db: dbStats });
 });
 
 // Démarrage du serveur

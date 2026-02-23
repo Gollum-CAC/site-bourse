@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const fmpService = require('../services/fmpService');
+const dbService = require('../services/dbService'); // DB-first pour quotes/profils/ratios
 
 // Helper pour symbole en majuscules
 const sym = (req) => req.params.symbol.toUpperCase();
@@ -10,10 +11,10 @@ const sym = (req) => req.params.symbol.toUpperCase();
 // === DONNÉES DE BASE ===
 // ==========================================
 
-// GET /api/actions/quote/:symbol
+// GET /api/actions/quote/:symbol — DB d'abord, FMP en fallback
 router.get('/quote/:symbol', async (req, res) => {
   try {
-    res.json(await fmpService.getQuote(sym(req)));
+    res.json(await dbService.getQuote(sym(req)));
   } catch (e) {
     console.error('Erreur quote:', e.message);
     res.status(500).json({ erreur: 'Impossible de récupérer le cours' });
@@ -30,10 +31,10 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// GET /api/actions/profil/:symbol
+// GET /api/actions/profil/:symbol — DB d'abord, FMP en fallback
 router.get('/profil/:symbol', async (req, res) => {
   try {
-    res.json(await fmpService.getCompanyProfile(sym(req)));
+    res.json(await dbService.getProfile(sym(req)));
   } catch (e) {
     console.error('Erreur profil:', e.message);
     res.status(500).json({ erreur: 'Impossible de récupérer le profil' });
@@ -74,10 +75,10 @@ router.get('/ratios/:symbol', async (req, res) => {
   }
 });
 
-// GET /api/actions/ratios-ttm/:symbol
+// GET /api/actions/ratios-ttm/:symbol — DB d'abord, FMP en fallback
 router.get('/ratios-ttm/:symbol', async (req, res) => {
   try {
-    res.json(await fmpService.getRatiosTTM(sym(req)));
+    res.json(await dbService.getRatiosTTM(sym(req)));
   } catch (e) {
     console.error('Erreur ratios TTM:', e.message);
     res.status(500).json({ erreur: 'Impossible de récupérer les ratios TTM' });
