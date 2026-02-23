@@ -268,8 +268,13 @@ export async function getHeadlines() {
 // ==========================================
 
 export async function getDbStatus() {
-  // API_BASE = 'http://localhost:3001/api' → on veut 'http://localhost:3001/api/db-status'
   const response = await fetch(`${API_BASE}/db-status`);
   if (!response.ok) throw new Error('Erreur DB status');
+  return response.json();
+}
+
+export async function getQuotaFMP() {
+  const response = await fetch(`${API_BASE.replace('/api', '')}/api/quota`);
+  if (!response.ok) return { depasse: false, resetTime: null };
   return response.json();
 }

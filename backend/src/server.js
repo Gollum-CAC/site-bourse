@@ -103,6 +103,7 @@ app.get('/api/db-status', async (req, res) => {
 // Route de test / santé
 app.get('/api/health', async (req, res) => {
   const cacheStats = require('./services/cacheService').stats();
+  const { getQuotaInfo } = require('./services/fmpService');
   let crawlerStats = null;
   let dbStats = null;
   try {
@@ -113,7 +114,20 @@ app.get('/api/health', async (req, res) => {
     const { getStatsDB } = require('./services/dbService');
     dbStats = await getStatsDB();
   } catch (e) {}
-  res.json({ status: 'ok', message: 'Site Bourse API fonctionne !', cache: cacheStats, crawler: crawlerStats, db: dbStats });
+  res.json({
+    status: 'ok',
+    message: 'Site Bourse API fonctionne !',
+    cache: cacheStats,
+    crawler: crawlerStats,
+    db: dbStats,
+    quota: getQuotaInfo(),
+  });
+});
+
+// Route quota FMP — renvoie l'état du quota journalier
+app.get('/api/quota', (req, res) => {
+  const { getQuotaInfo } = require('./services/fmpService');
+  res.json(getQuotaInfo());
 });
 
 // Démarrage du serveur
@@ -136,7 +150,10 @@ app.listen(PORT, '0.0.0.0', async () => {
 
   // Démarrer le crawler si la DB est prête
   if (dbReady) {
-    const { startCrawler } = require('./crawler');
+    const crawlerRef = require('./services/crawlerRef');
+    const crawlerModule = require('./crawler');
+    crawlerRef.setCrawlerRef(crawlerModule); // lien pour que fmpService puisse stopper le crawler
+    const { startCrawler } = crawlerModule;
     startCrawler({
       dailyBudget: 750,           // Plan FMP Standard : 750 req/min, ~10 000+/jour
       reservedForUser: 150,       // 150 réservés pour la navigation

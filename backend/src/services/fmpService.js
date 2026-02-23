@@ -7,24 +7,75 @@ const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
 const API_KEY = process.env.FMP_API_KEY;
 console.log(`[FMP] API Key chargée: ${API_KEY ? API_KEY.substring(0, 6) + '...' : 'MANQUANTE !'}`);
 
-// Rate limiter
+// ============================================================
+// === GESTION DU QUOTA JOURNALIER FMP ===
+// Quand FMP renvoie 401/403 avec 'Limit Reach' ou 'Too many requests',
+// on bloque tous les appels jusqu'à minuit (reset quotidien FMP)
+// ============================================================
+let quotaDepasse = false;
+let quotaResetTime = null; // timestamp minuit prochain
+
+function signalQuotaDepasse() {
+  if (quotaDepasse) return;
+  quotaDepasse = true;
+  // Reset à minuit (00:05 pour laisser le temps à FMP de réinitialiser)
+  const demain = new Date();
+  demain.setDate(demain.getDate() + 1);
+  demain.setHours(0, 5, 0, 0);
+  quotaResetTime = demain.getTime();
+  console.warn(`[FMP] ⚠️ QUOTA JOURNALIER DÉPASSÉ — appels bloqués jusqu'à ${demain.toLocaleTimeString('fr-FR')} demain`);
+  // Signaler au crawler de s'arrêter
+  try {
+    const { setCrawlerConfig } = require('./crawlerRef');
+    setCrawlerConfig({ enabled: false });
+  } catch {}
+}
+
+function verifierQuota() {
+  if (!quotaDepasse) return false;
+  if (Date.now() >= quotaResetTime) {
+    quotaDepasse = false;
+    quotaResetTime = null;
+    console.log('[FMP] ✅ Quota réinitialisé (nouveau jour FMP)');
+    return false;
+  }
+  return true;
+}
+
+// Export pour que le reste du code puisse vérifier
+function isQuotaDepasse() { return verifierQuota(); }
+function getQuotaInfo() {
+  return {
+    depasse: verifierQuota(),
+    resetTime: quotaResetTime ? new Date(quotaResetTime).toISOString() : null,
+  };
+}
+
+// Rate limiter (req/minute)
 let requestTimes = [];
-const MAX_REQUESTS_PER_MINUTE = 750; // Plan FMP Standard : 750 req/min
+const MAX_REQUESTS_PER_MINUTE = 750;
 
 async function rateLimitedFetch(url) {
+  // Bloquer si quota journalier dépassé
+  if (verifierQuota()) {
+    const err = new Error('QUOTA_DEPASSE');
+    err.code = 'QUOTA_DEPASSE';
+    throw err;
+  }
+
   const now = Date.now();
   requestTimes = requestTimes.filter(t => now - t < 60000);
 
   if (requestTimes.length >= MAX_REQUESTS_PER_MINUTE) {
     const waitTime = 60000 - (now - requestTimes[0]) + 500;
-    console.log(`[FMP] Rate limit, attente ${(waitTime / 1000).toFixed(1)}s...`);
+    console.log(`[FMP] Rate limit/min, attente ${(waitTime / 1000).toFixed(1)}s...`);
     await new Promise(resolve => setTimeout(resolve, waitTime));
     requestTimes = requestTimes.filter(t => Date.now() - t < 60000);
   }
 
   requestTimes.push(Date.now());
   const response = await fetch(url);
-  
+
   if (response.status === 429) {
     console.log('[FMP] 429 reçu, attente 60s...');
     await new Promise(resolve => setTimeout(resolve, 60000));
@@ -32,22 +83,59 @@ async function rateLimitedFetch(url) {
     requestTimes.push(Date.now());
     return fetch(url);
   }
-  
+
   return response;
 }
 
-// Helper : appel FMP avec cache
+// Helper : appel FMP avec cache + détection quota
 async function fmpFetch(endpoint, cacheKey, ttl = cache.DEFAULT_TTL) {
   return cache.getOrFetch(cacheKey, async () => {
     const separator = endpoint.includes('?') ? '&' : '?';
     const url = `${FMP_BASE_URL}/${endpoint}${separator}apikey=${API_KEY}`;
-    const response = await rateLimitedFetch(url);
+
+    let response;
+    try {
+      response = await rateLimitedFetch(url);
+    } catch (err) {
+      if (err.code === 'QUOTA_DEPASSE') throw err;
+      throw err;
+    }
+
+    // Détecter le quota dépassé via le statut HTTP ou le contenu
+    if (response.status === 401 || response.status === 403 || response.status === 402) {
+      const text = await response.text();
+      const isQuota = text.includes('Limit Reach') || text.includes('limit reach')
+        || text.includes('Too many') || text.includes('quota') || text.includes('exceeded');
+      if (isQuota) {
+        signalQuotaDepasse();
+        const err = new Error('QUOTA_DEPASSE');
+        err.code = 'QUOTA_DEPASSE';
+        throw err;
+      }
+      console.error(`[FMP] Erreur ${response.status}:`, text.substring(0, 200));
+      throw new Error(`Erreur FMP: ${response.status}`);
+    }
+
     if (!response.ok) {
       const text = await response.text();
       console.error(`[FMP] Erreur ${response.status}:`, text.substring(0, 200));
       throw new Error(`Erreur FMP: ${response.status}`);
     }
-    return response.json();
+
+    const data = await response.json();
+
+    // Certaines APIs FMP renvoient 200 mais avec message d'erreur de quota
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const msg = data['Error Message'] || data.message || '';
+      if (typeof msg === 'string' && (msg.includes('Limit Reach') || msg.includes('limit reach'))) {
+        signalQuotaDepasse();
+        const err = new Error('QUOTA_DEPASSE');
+        err.code = 'QUOTA_DEPASSE';
+        throw err;
+      }
+    }
+
+    return data;
   }, ttl);
 }
 
@@ -222,6 +310,8 @@ async function getPressReleases(symbol, limit = 10) {
 // ==========================================
 
 module.exports = {
+  // Quota
+  isQuotaDepasse, getQuotaInfo, signalQuotaDepasse,
   // Base
   getQuote, getBatchQuotes, searchStock, getCompanyProfile, getHistoricalPrice, getStockScreener,
   // Ratios
