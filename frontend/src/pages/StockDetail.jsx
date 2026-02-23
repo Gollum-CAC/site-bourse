@@ -148,7 +148,7 @@ function StockDetail() {
 
       {/* ── Barre de navigation ── */}
       <div className="detail-top-bar">
-        <Link to="/" className="back-link">← Accueil</Link>
+        <Link to="/" className="back-link">← <span className="back-link-text">Accueil</span></Link>
         <button className={`watchlist-btn ${isInWatchlist ? 'active' : ''}`} onClick={toggleWatchlist}>
           {isInWatchlist ? '★ Watchlist' : '☆ Ajouter'}
         </button>

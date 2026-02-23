@@ -1582,48 +1582,262 @@ body {
 .legende-item { display: flex; align-items: center; gap: 6px; }
 .legende-info { margin-left: auto; font-style: italic; color: var(--text-muted); }
 
-/* ===== RESPONSIVE ===== */
+/* ============================================================
+   RESPONSIVE — Mobile-first complet
+   Breakpoints :
+     1024px : tablette paysage
+      900px : tablette portrait
+      768px : mobile large
+      480px : mobile standard
+      360px : petits mobiles
+   ============================================================ */
+
+/* === Utilitaires overflow tableaux (tous écrans) === */
+.table-scroll-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-lg);
+}
+
+/* ─── 1024px : tablette paysage ─── */
 @media (max-width: 1024px) {
   .hero-stats { grid-template-columns: repeat(2, 1fr); }
+  .detail-grid { grid-template-columns: 1fr; }
+  .stock-table-fullname { max-width: 160px; }
 }
 
+/* ─── 900px : tablette portrait ─── */
 @media (max-width: 900px) {
+  /* Screener & Calendrier : panneau latéral → dessus */
   .screener-layout, .cal-layout { flex-direction: column; }
   .screener-filtres-panel { width: 100%; position: static; max-height: none; }
-  .cal-detail-panel { width: 100%; position: static; }
+  .cal-detail-panel { width: 100%; position: static; max-height: none; }
+
+  /* Calendrier grille plus compacte */
+  .cal-jour { min-height: 72px; }
 }
 
+/* ─── 768px : mobile large ─── */
 @media (max-width: 768px) {
-  .app { padding: 0 14px; }
-  .app-main { padding: 18px 14px 0; }
 
-  .navbar { padding: 0 14px; }
+  /* ── Layout global ── */
+  body { font-size: 14px; }
+  .app { padding: 0 12px; }
+  .app-main { padding: 14px 12px 0; }
+
+  /* ── Navbar ── */
+  .navbar { padding: 0 12px; height: 56px; }
+  .navbar-brand { font-size: 1.05rem; }
   .navbar-links { display: none; }
-  .navbar-links.open { display: flex; flex-direction: column; position: fixed; top: 60px; left: 0; right: 0; background: var(--bg-surface); border-bottom: 1px solid var(--border); padding: 16px; gap: 8px; z-index: 99; }
+  .navbar-links.open {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 56px; left: 0; right: 0;
+    background: var(--bg-surface);
+    border-bottom: 2px solid var(--border);
+    padding: 12px;
+    gap: 4px;
+    z-index: 99;
+    box-shadow: var(--shadow-lg);
+  }
+  .navbar-links.open a {
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    border: 1px solid transparent;
+  }
+  .navbar-links.open a:hover { background: var(--bg-card); border-color: var(--border); }
   .navbar-hamburger { display: flex; }
+  /* Hamburger animé */
+  .navbar-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .navbar-hamburger.open span:nth-child(2) { opacity: 0; }
+  .navbar-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-  .hero-stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .hero-stat-value { font-size: 1.2rem; }
+  /* ── Ticker tape ── */
+  .ticker-item { padding: 0 14px; font-size: 0.72rem; gap: 6px; }
+  .ticker-tape { padding: 5px 0; }
 
-  .stocks-grid, .news-grid { grid-template-columns: 1fr; }
-  .detail-grid { grid-template-columns: 1fr; }
-  .market-data-grid { grid-template-columns: 1fr 1fr; }
-  .detail-header { flex-direction: column; }
+  /* ── Hero stats ── */
+  .hero-stats { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 20px; }
+  .hero-stat-card { padding: 12px 14px; }
+  .hero-stat-value { font-size: 1.15rem; }
+  .hero-stat-label { font-size: 0.68rem; }
+
+  /* ── Search bar ── */
+  .search-wrapper { margin-bottom: 20px; }
+  .search-input-row input { font-size: 0.9rem; padding: 10px 14px; }
+  .search-input-row button { padding: 10px 16px; font-size: 0.85rem; }
+
+  /* ── Market tabs ── */
+  .stock-market-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .stock-market-tabs::-webkit-scrollbar { display: none; }
+  .stock-market-tabs button { flex-shrink: 0; font-size: 0.78rem; padding: 5px 12px; }
+
+  /* ── Tableaux actions — colonnes secondaires masquées ── */
+  .stock-table th:nth-child(4),  /* Volume */
+  .stock-table td:nth-child(4),
+  .stock-table th:nth-child(5),  /* Cap */
+  .stock-table td:nth-child(5) { display: none; }
+  .stock-table td, .stock-table th { padding: 10px 10px; font-size: 0.82rem; }
+  .stock-table-name { gap: 6px; }
+  .stock-table-name strong { min-width: 55px; font-size: 0.82rem; }
+  .stock-table-fullname { max-width: 120px; font-size: 0.76rem; }
+
+  /* ── Tableau cryptos — colonnes masquées ── */
+  .crypto-table th:nth-child(4),  /* 7j */
+  .crypto-table td:nth-child(4),
+  .crypto-table th:nth-child(5),  /* Vol */
+  .crypto-table td:nth-child(5) { display: none; }
+  .crypto-table td, .crypto-table th { padding: 10px 10px; font-size: 0.82rem; }
+
+  /* ── Actualités ── */
+  .news-grid { grid-template-columns: 1fr; gap: 10px; }
+  .news-grid-full { grid-template-columns: 1fr; }
+  .news-image { height: 130px; }
+
+  /* ── Page détail action ── */
+  .detail-top-bar { padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
+  .detail-header { padding: 16px; flex-direction: column; gap: 14px; }
+  .detail-header-left { gap: 12px; }
+  .detail-logo, .detail-logo-placeholder { width: 44px; height: 44px; font-size: 1.1rem; }
+  .detail-header h1 { font-size: 1.35rem; }
+  .detail-name { font-size: 0.85rem; }
   .detail-price-block { text-align: left; }
-  .detail-tabs { overflow-x: auto; width: 100%; }
-  .detail-kpi-row { gap: 6px; }
-  .kpi-chip { min-width: 80px; padding: 7px 10px; }
+  .detail-price { font-size: 1.8rem; }
 
+  /* KPI chips : grille 2 colonnes */
+  .detail-kpi-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .kpi-chip { min-width: unset; padding: 8px 10px; }
+  .kpi-chip-value { font-size: 0.85rem; }
+
+  /* Onglets détail : scroll horizontal */
+  .detail-tabs {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .detail-tabs::-webkit-scrollbar { display: none; }
+  .detail-tabs button { padding: 7px 14px; font-size: 0.8rem; }
+
+  /* Grille détail : 1 colonne */
+  .detail-grid { grid-template-columns: 1fr; gap: 12px; }
+  .detail-card { padding: 16px; }
+  .market-data-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+
+  /* Tableaux financiers : scroll horizontal */
+  .financial-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .financial-period-toggle { width: 100%; justify-content: stretch; }
+  .financial-period-toggle button { flex: 1; text-align: center; }
+
+  /* ── Super dividendes ── */
+  .super-div-header { flex-direction: column; gap: 10px; }
+  .super-div-header h1 { font-size: 1.4rem; }
+  .super-div-controls { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .sort-buttons { flex-wrap: wrap; }
+  .score-criteria { flex-direction: column; gap: 8px; }
+  .super-div-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* ── Screener ── */
+  .screener-header h1 { font-size: 1.4rem; }
+  .screener-presets { padding: 10px 12px; }
+  .screener-presets-label { display: none; }
+  .screener-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* Masquer colonnes secondaires screener */
+  .screener-table th.col-secteur,
+  .screener-table td.col-secteur { display: none; }
+
+  /* ── Calendrier ── */
+  .cal-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .cal-title-block h1 { font-size: 1.4rem; }
+  .cal-controls { flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 12px; }
+  .cal-filtres { flex-wrap: wrap; }
+  .cal-stats { flex-wrap: wrap; gap: 6px; }
   .cal-grille { gap: 2px; }
-  .cal-jour { min-height: 60px; padding: 4px; }
-  .cal-evts-labels { display: none; }
-  .cal-header { flex-direction: column; align-items: flex-start; }
+  .cal-jour { min-height: 54px; padding: 4px; }
+  .cal-jour-header { font-size: 0.65rem; padding: 6px 2px; }
+  .cal-evts-labels { display: none; } /* labels trop longs, garder seulement dots */
   .legende-info { margin-left: 0; }
+  .cal-legende { flex-wrap: wrap; gap: 10px; }
 
-  .period-buttons { flex-wrap: wrap; }
+  /* ── Page DB Status ── */
+  .detail-card { padding: 14px; }
+
+  /* ── Footer ── */
+  .app-footer { padding: 20px 0; font-size: 0.75rem; }
+
+  /* ── Titres pages ── */
+  .cryptos-page h1,
+  .news-page h1,
+  .watchlist-page h1 { font-size: 1.4rem; }
 }
 
+/* ─── 480px : mobile standard ─── */
 @media (max-width: 480px) {
-  .hero-stats { grid-template-columns: 1fr 1fr; }
-  .detail-kpi-row { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .app { padding: 0 10px; }
+  .app-main { padding: 12px 10px 0; }
+
+  /* Hero stats : 2 colonnes compactes */
+  .hero-stats { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .hero-stat-card { padding: 10px 12px; }
+  .hero-stat-value { font-size: 1rem; }
+
+  /* KPI chips détail : 2 colonnes */
+  .detail-kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .kpi-chip-label { font-size: 0.62rem; }
+  .kpi-chip-value { font-size: 0.8rem; }
+
+  /* Market data : 2 colonnes */
+  .market-data-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Tableaux : colonne cap masquée aussi */
+  .stock-table th:nth-child(3),
+  .stock-table td:nth-child(3) { display: none; } /* Variation % masquée */
+
+  /* Suggestions search : plus compactes */
+  .suggestion-symbol { min-width: 60px; }
+  .suggestion-name { display: none; } /* masquer le nom, garder symbole + exchange */
+
+  /* Calendrier encore plus compact */
+  .cal-jour { min-height: 44px; }
+  .cal-jour-num { font-size: 0.72rem; width: 20px; height: 20px; }
+  .cal-jour-today .cal-jour-num { width: 20px; height: 20px; font-size: 0.72rem; }
+  .cal-evt-dot { width: 12px; height: 12px; font-size: 0.55rem; }
+
+  /* Screener : masquer le numéro */
+  .screener-td-num { display: none; }
+
+  /* Search wrapper : full width */
+  .search-wrapper { margin-left: 0; margin-right: 0; }
+
+  /* Tabs détail : texte plus petit */
+  .detail-tabs button { padding: 6px 10px; font-size: 0.75rem; }
+
+  /* Navbar brand : texte raccourci */
+  .navbar-brand { font-size: 0.95rem; }
+
+  /* Back link : icône seulement */
+  .back-link-text { display: none; }
+}
+
+/* ─── 360px : très petits mobiles ─── */
+@media (max-width: 360px) {
+  .app { padding: 0 8px; }
+  body { font-size: 13px; }
+
+  .hero-stats { grid-template-columns: 1fr 1fr; gap: 5px; }
+  .hero-stat-card { padding: 8px 10px; }
+  .hero-stat-value { font-size: 0.95rem; }
+
+  .detail-price { font-size: 1.55rem; }
+  .detail-kpi-row { grid-template-columns: repeat(2, 1fr); gap: 5px; }
+
+  .stock-market-tabs button { padding: 5px 9px; font-size: 0.72rem; }
 }

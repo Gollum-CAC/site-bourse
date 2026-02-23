@@ -496,7 +496,7 @@ function ScreenerPage() {
                   <tr>
                     <th>#</th>
                     <th>Action</th>
-                    <th>Secteur</th>
+                    <th className="col-secteur">Secteur</th>
                     <th className="th-right">Prix</th>
                     <th className="th-right">Variation</th>
                     <th className="th-right">Cap. boursière</th>
@@ -527,7 +527,7 @@ function ScreenerPage() {
                             <span className="screener-nom-complet">{stock.name}</span>
                           </div>
                         </td>
-                        <td className="screener-td-secteur">
+                        <td className="screener-td-secteur col-secteur">
                           <span className="screener-secteur-tag">{stock.sector !== 'N/A' ? stock.sector : '—'}</span>
                         </td>
                         <td className="td-right">

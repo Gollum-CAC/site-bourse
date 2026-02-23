@@ -57,14 +57,12 @@ function Navbar() {
 
       {/* Bouton hamburger mobile */}
       <button
-        className="navbar-hamburger"
+        className={`navbar-hamburger ${menuOuvert ? 'open' : ''}`}
         onClick={() => setMenuOuvert(v => !v)}
         aria-label="Menu"
         aria-expanded={menuOuvert}
       >
-        <span style={{ transform: menuOuvert ? 'rotate(45deg) translate(5px, 5px)' : 'none' }} />
-        <span style={{ opacity: menuOuvert ? 0 : 1 }} />
-        <span style={{ transform: menuOuvert ? 'rotate(-45deg) translate(5px, -5px)' : 'none' }} />
+        <span /><span /><span />
       </button>
     </nav>
   );
