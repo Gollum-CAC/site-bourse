@@ -24,6 +24,17 @@ app.use('/api/news', newsRoutes);
 app.use('/api/dividendes', superDividendesRoutes);
 app.use('/api/screener', screenerRoutes);
 
+// Route pour injecter/rafraîchir les symboles manuellement
+app.post('/api/seeds/injecter', async (req, res) => {
+  try {
+    const { injecterSymboles } = require('./seeds');
+    const result = await injecterSymboles();
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ erreur: e.message });
+  }
+});
+
 // Route statut DB détaillée — liste des actions chargées
 app.get('/api/db-status', async (req, res) => {
   try {
@@ -117,17 +128,23 @@ app.listen(PORT, '0.0.0.0', async () => {
   const { initDatabase } = require('./initDb');
   const dbReady = await initDatabase();
 
+  // Injecter les symboles connus (CAC40, S&P500, DAX, FTSE100, etc.)
+  if (dbReady) {
+    const { injecterSymboles } = require('./seeds');
+    await injecterSymboles();
+  }
+
   // Démarrer le crawler si la DB est prête
   if (dbReady) {
     const { startCrawler } = require('./crawler');
     startCrawler({
-      dailyBudget: 250,           // Limite réelle plan FMP gratuit
-      reservedForUser: 200,       // 200 pour la navigation utilisateur
-      crawlerBudget: 50,          // 50 appels/jour pour le crawler
-      pauseBetweenRequests: 5000, // 5s entre chaque appel
-      batchSize: 5,               // 5 actions par cycle
-      cycleInterval: 1800000,     // Cycle toutes les 30 min
-      dividendRefreshDays: 30,    // Refresh mensuel
+      dailyBudget: 750,           // Plan FMP Standard : 750 req/min, ~10 000+/jour
+      reservedForUser: 150,       // 150 réservés pour la navigation
+      crawlerBudget: 600,         // 600 appels/jour pour enrichir rapidement
+      pauseBetweenRequests: 1000, // 1s entre appels (plan Standard supporte 750/min)
+      batchSize: 10,              // 10 actions par cycle
+      cycleInterval: 300000,      // Cycle toutes les 5 min
+      dividendRefreshDays: 30,
     });
   }
 });

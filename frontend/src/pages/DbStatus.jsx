@@ -61,7 +61,24 @@ export default function DbStatus() {
   const [filtre, setFiltre]     = useState('');
   const [colonneSort, setSort]  = useState('market_cap');
   const [refresh, setRefresh]   = useState(0);
+  const [seeding, setSeeding]   = useState(false);
+  const [seedMsg, setSeedMsg]   = useState('');
   const navigate = useNavigate();
+
+  async function lancerInjection() {
+    setSeeding(true);
+    setSeedMsg('');
+    try {
+      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : '/api';
+      const r = await fetch(`${API_BASE}/seeds/injecter`, { method: 'POST' });
+      const d = await r.json();
+      setSeedMsg(`✅ ${d.inseres} nouveaux symboles injectés, ${d.ignores} mis à jour (total: ${d.total})`);
+      setRefresh(x => x + 1);
+    } catch (e) {
+      setSeedMsg(`❌ Erreur : ${e.message}`);
+    }
+    setSeeding(false);
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -141,18 +158,36 @@ export default function DbStatus() {
             Dernière mise à jour : {tempsEcoule(generatedAt)} · Actualisation auto toutes les 30s
           </p>
         </div>
-        <button
-          onClick={() => setRefresh(r => r + 1)}
-          style={{
-            padding: '8px 18px', background: 'var(--bg-card)', border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', cursor: 'pointer',
-            fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { e.target.style.borderColor = 'var(--blue)'; e.target.style.color = 'var(--blue-light)'; }}
-          onMouseLeave={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.color = 'var(--text-secondary)'; }}
-        >
-          ⟳ Actualiser
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setRefresh(r => r + 1)}
+            style={{
+              padding: '8px 18px', background: 'var(--bg-card)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', cursor: 'pointer',
+              fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.15s',
+            }}
+          >
+            ⟳ Actualiser
+          </button>
+          <button
+            onClick={lancerInjection}
+            disabled={seeding}
+            style={{
+              padding: '8px 18px', background: seeding ? 'var(--bg-overlay)' : 'var(--blue-dim)',
+              border: '1px solid var(--blue)', borderRadius: 'var(--radius-md)',
+              color: seeding ? 'var(--text-muted)' : 'var(--blue-light)',
+              cursor: seeding ? 'not-allowed' : 'pointer',
+              fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.15s',
+            }}
+          >
+            {seeding ? '⏳ Injection...' : '🌱 Injecter les symboles'}
+          </button>
+          {seedMsg && (
+            <span style={{ fontSize: '0.82rem', color: seedMsg.startsWith('✅') ? 'var(--green-light)' : 'var(--red-light)' }}>
+              {seedMsg}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── Compteurs principaux ── */}
