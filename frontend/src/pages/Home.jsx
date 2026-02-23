@@ -124,9 +124,11 @@ function Home() {
             {[...tickerData, ...tickerData].map((s, i) => {
               const pct = s.changesPercentage ?? s.changePercentage ?? 0;
               const isPos = pct >= 0;
+              // Label : vrai nom si dispo, sinon symbole seul
+              const label = (s.name && s.name !== s.symbol) ? s.name : s.symbol;
               return (
                 <div key={i} className="ticker-item" onClick={() => navigate(`/action/${s.symbol}`)} style={{ cursor: 'pointer' }}>
-                  <span className="ticker-symbol">{s.symbol}</span>
+                  <span className="ticker-symbol">{label}</span>
                   <span className="ticker-price">{s.price?.toFixed(2)}</span>
                   <span className={`ticker-change ${isPos ? 'pos' : 'neg'}`}>
                     {isPos ? '▲' : '▼'} {Math.abs(pct).toFixed(2)}%
@@ -195,7 +197,10 @@ function Home() {
                     <td>
                       <div className="stock-table-name">
                         <strong>{stock.symbol}</strong>
-                        <span className="stock-table-fullname">{stock.name}</span>
+                        {/* Masquer le nom si identique au symbole (donnée FMP non encore enrichie) */}
+                        {stock.name && stock.name !== stock.symbol && (
+                          <span className="stock-table-fullname">{stock.name}</span>
+                        )}
                       </div>
                     </td>
                     <td className="price-mono" style={{ textAlign: 'right' }}>

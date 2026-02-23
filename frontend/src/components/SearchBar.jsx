@@ -1,57 +1,46 @@
-// Composant barre de recherche avec suggestions et filtre marché
+// Composant barre de recherche — autocomplétion sans filtre marché (géré par les tabs)
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { searchStock } from '../services/api';
 
-const MARKETS = [
-  { label: 'Tous', value: '' },
-  { label: '🇺🇸 US', value: 'NASDAQ,NYSE' },
-  { label: '🇫🇷 Paris', value: 'EURONEXT' },
-  { label: '🇳🇱 Amsterdam', value: 'EURONEXT' },
-  { label: '🇩🇪 Francfort', value: 'XETRA' },
-  { label: '🇬🇧 Londres', value: 'LSE' },
-  { label: '🇯🇵 Tokyo', value: 'TSE' },
-  { label: '🇭🇰 Hong Kong', value: 'HKSE' },
-];
-
-function SearchBar({ onSearch }) {
-  const [query, setQuery] = useState('');
-  const [market, setMarket] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
+function SearchBar({ onSearch, marketFilter = '' }) {
+  const [query, setQuery]                   = useState('');
+  const [suggestions, setSuggestions]       = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const navigate = useNavigate();
-  const timeoutRef = useRef(null);
-  const wrapperRef = useRef(null);
+  const [loading, setLoading]               = useState(false);
+  const navigate    = useNavigate();
+  const timeoutRef  = useRef(null);
+  const wrapperRef  = useRef(null);
 
-  // Fermer les suggestions quand on clique en dehors
+  // Fermer les suggestions si clic en dehors
   useEffect(() => {
-    function handleClickOutside(e) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+    const handler = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target))
         setShowSuggestions(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Autocomplétion avec debounce
+  // Autocomplétion avec debounce 300ms
   function handleInputChange(value) {
     setQuery(value);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    clearTimeout(timeoutRef.current);
 
     if (value.trim().length >= 2) {
+      setLoading(true);
       timeoutRef.current = setTimeout(async () => {
         try {
-          const results = await searchStock(value, market);
+          const results = await searchStock(value, marketFilter);
           setSuggestions(Array.isArray(results) ? results.slice(0, 8) : []);
           setShowSuggestions(true);
-        } catch (err) {
-          console.error('Erreur autocomplétion:', err);
-        }
+        } catch {}
+        setLoading(false);
       }, 300);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
+      setLoading(false);
     }
   }
 
@@ -63,64 +52,48 @@ function SearchBar({ onSearch }) {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (query.trim()) {
-      setShowSuggestions(false);
-      if (onSearch) {
-        onSearch(query.trim().toUpperCase());
-      } else {
-        navigate(`/action/${query.trim().toUpperCase()}`);
-      }
-      setQuery('');
+    if (!query.trim()) return;
+    setShowSuggestions(false);
+    if (onSearch) {
+      onSearch(query.trim().toUpperCase());
+    } else {
+      navigate(`/action/${query.trim().toUpperCase()}`);
     }
+    setQuery('');
   }
 
-  // Déterminer le drapeau/exchange pour l'affichage
-  function getExchangeFlag(exchangeName) {
-    if (!exchangeName) return '';
-    const ex = exchangeName.toUpperCase();
-    if (ex.includes('PARIS') || ex.includes('EURONEXT')) return '🇫🇷';
-    if (ex.includes('XETRA') || ex.includes('FRANKFURT')) return '🇩🇪';
-    if (ex.includes('LONDON') || ex.includes('LSE')) return '🇬🇧';
-    if (ex.includes('AMSTERDAM')) return '🇳🇱';
-    if (ex.includes('BRUSSELS')) return '🇧🇪';
-    if (ex.includes('MILAN') || ex.includes('BORSA')) return '🇮🇹';
-    if (ex.includes('NASDAQ') || ex.includes('NYSE') || ex.includes('AMEX')) return '🇺🇸';
-    if (ex.includes('TSX') || ex.includes('TORONTO')) return '🇨🇦';
-    if (ex.includes('TSE') || ex.includes('TOKYO') || ex.includes('JPX')) return '🇯🇵';
-    if (ex.includes('HKSE') || ex.includes('HONG KONG')) return '🇭🇰';
-    if (ex.includes('KRX') || ex.includes('KOREA')) return '🇰🇷';
-    if (ex.includes('SSE') || ex.includes('SHANGHAI') || ex.includes('SHENZHEN')) return '🇨🇳';
+  function getExchangeFlag(ex = '') {
+    const u = ex.toUpperCase();
+    if (u.includes('PARIS') || u.includes('EURONEXT')) return '🇫🇷';
+    if (u.includes('XETRA') || u.includes('FRANKFURT')) return '🇩🇪';
+    if (u.includes('LONDON') || u.includes('LSE')) return '🇬🇧';
+    if (u.includes('AMSTERDAM')) return '🇳🇱';
+    if (u.includes('NASDAQ') || u.includes('NYSE')) return '🇺🇸';
+    if (u.includes('TSE') || u.includes('TOKYO')) return '🇯🇵';
+    if (u.includes('HKSE') || u.includes('HONG KONG')) return '🇭🇰';
     return '🌐';
   }
 
   return (
     <div className="search-wrapper" ref={wrapperRef}>
       <form className="search-bar" onSubmit={handleSubmit}>
-        <div className="market-filter">
-          {MARKETS.map((m, i) => (
-            <button
-              key={m.label}
-              type="button"
-              className={market === m.value ? 'market-active' : ''}
-              onClick={() => setMarket(m.value)}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
+        {/* Pas de filtre marché ici — les tabs de la section Cours s'en chargent */}
         <div className="search-input-row">
           <input
             type="text"
-            placeholder="Rechercher une action (ex: LVMH, Apple, MC.PA, AAPL...)"
+            placeholder="Rechercher une action — ex : LVMH, AAPL, MC.PA, Apple…"
             value={query}
             onChange={(e) => handleInputChange(e.target.value)}
             onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+            autoComplete="off"
           />
-          <button type="submit">🔍</button>
+          <button type="submit" disabled={!query.trim()}>
+            {loading ? '…' : '🔍'}
+          </button>
         </div>
       </form>
 
-      {/* Suggestions d'autocomplétion */}
+      {/* Suggestions */}
       {showSuggestions && suggestions.length > 0 && (
         <div className="search-suggestions">
           {suggestions.map((s, i) => (
@@ -130,7 +103,8 @@ function SearchBar({ onSearch }) {
                 <span className="suggestion-name">{s.name}</span>
               </div>
               <span className="suggestion-exchange">
-                {getExchangeFlag(s.exchangeShortName || s.stockExchange)} {s.exchangeShortName || s.stockExchange || ''}
+                {getExchangeFlag(s.exchangeShortName || s.stockExchange)}&nbsp;
+                {s.exchangeShortName || s.stockExchange || ''}
               </span>
             </div>
           ))}

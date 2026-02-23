@@ -29,14 +29,15 @@ function estPerime(updatedAt, ttl) {
  */
 async function getQuote(symbol) {
   try {
-    // Chercher en DB
-    const { rows } = await pool.query(
-      'SELECT *, updated_at FROM stock_quotes WHERE symbol = $1',
-      [symbol]
-    );
+    // Chercher en DB : jointure avec stocks pour récupérer le vrai nom
+    const { rows } = await pool.query(`
+      SELECT q.*, s.name AS stock_name
+      FROM stock_quotes q
+      LEFT JOIN stocks s ON s.symbol = q.symbol
+      WHERE q.symbol = $1
+    `, [symbol]);
 
     if (rows.length > 0 && !estPerime(rows[0].updated_at, FRESHNESS.quote)) {
-      // Données fraîches en DB → retourner au format attendu par le frontend
       return [formatQuoteFromDB(rows[0], symbol)];
     }
   } catch (dbErr) {
@@ -56,16 +57,18 @@ async function getQuote(symbol) {
 async function sauvegarderQuote(symbol, q) {
   try {
     // S'assurer que le symbole existe dans stocks
+    // Si FMP renvoie un nom vide ou identique au symbole, on garde celui déjà en DB
+    const nomFMP = (q.name && q.name !== symbol) ? q.name : null;
     await pool.query(`
       INSERT INTO stocks (symbol, name, price, market_cap, updated_at)
       VALUES ($1, $2, $3, $4, NOW())
       ON CONFLICT (symbol) DO UPDATE SET
-        name = COALESCE(EXCLUDED.name, stocks.name),
+        name = COALESCE($2, stocks.name),
         price = EXCLUDED.price,
         market_cap = EXCLUDED.market_cap,
         last_quote_update = NOW(),
         updated_at = NOW()
-    `, [symbol, q.name || symbol, q.price || null, q.marketCap || null]);
+    `, [symbol, nomFMP, q.price || null, q.marketCap || null]);
 
     await pool.query(`
       INSERT INTO stock_quotes (
@@ -102,7 +105,7 @@ async function sauvegarderQuote(symbol, q) {
 function formatQuoteFromDB(row, symbol) {
   return {
     symbol,
-    name: row.name || symbol,
+    name: row.stock_name || row.name || symbol,
     price: parseFloat(row.price) || 0,
     open: parseFloat(row.open) || null,
     dayHigh: parseFloat(row.day_high) || null,
