@@ -9,7 +9,7 @@ console.log(`[FMP] API Key chargée: ${API_KEY ? API_KEY.substring(0, 6) + '...'
 
 // Rate limiter
 let requestTimes = [];
-const MAX_REQUESTS_PER_MINUTE = 4;
+const MAX_REQUESTS_PER_MINUTE = 750; // Plan FMP Standard : 750 req/min
 
 async function rateLimitedFetch(url) {
   const now = Date.now();
