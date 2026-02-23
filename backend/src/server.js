@@ -155,12 +155,12 @@ app.listen(PORT, '0.0.0.0', async () => {
     crawlerRef.setCrawlerRef(crawlerModule); // lien pour que fmpService puisse stopper le crawler
     const { startCrawler } = crawlerModule;
     startCrawler({
-      dailyBudget: 750,           // Plan FMP Standard : 750 req/min, ~10 000+/jour
-      reservedForUser: 150,       // 150 réservés pour la navigation
-      crawlerBudget: 600,         // 600 appels/jour pour enrichir rapidement
-      pauseBetweenRequests: 1000, // 1s entre appels (plan Standard supporte 750/min)
-      batchSize: 10,              // 10 actions par cycle
-      cycleInterval: 300000,      // Cycle toutes les 5 min
+      dailyBudget: 250,           // Plan FMP Gratuit : 250 appels/jour
+      reservedForUser: 50,        // 50 réservés pour la navigation utilisateur
+      crawlerBudget: 200,         // 200 appels/jour pour enrichir la DB
+      pauseBetweenRequests: 3000, // 3s entre appels (prudent)
+      batchSize: 3,               // 3 actions par cycle
+      cycleInterval: 3600000,     // Cycle toutes les heures (200 appels / 24h = 8/h max)
       dividendRefreshDays: 30,
     });
   }
