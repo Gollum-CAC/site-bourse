@@ -1,6 +1,6 @@
 // Page détail d'une action — Design Bloomberg, logo, KPI chips, onglets pill
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getQuote, getCompanyProfile, getDividends, getHistoricalPrice, getKeyMetrics, getRatiosTTM, getIncomeStatement, getBalanceSheet, getCashFlow } from '../services/api';
 import PriceChart from '../components/PriceChart';
 
@@ -17,6 +17,7 @@ const TF_DAYS = {
 
 function StockDetail() {
   const { symbol } = useParams();
+  const navigate = useNavigate();
   const [quote, setQuote]               = useState(null);
   const [profile, setProfile]           = useState(null);
   const [dividends, setDividends]       = useState([]);
@@ -155,9 +156,18 @@ function StockDetail() {
       {/* ── Barre de navigation ── */}
       <div className="detail-top-bar">
         <Link to="/" className="back-link">← <span className="back-link-text">Accueil</span></Link>
-        <button className={`watchlist-btn ${isInWatchlist ? 'active' : ''}`} onClick={toggleWatchlist}>
-          {isInWatchlist ? '★ Watchlist' : '☆ Ajouter'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="compare-btn"
+            onClick={() => navigate(`/comparateur?symbols=${symbol}`)}
+            title="Comparer avec d'autres actions"
+          >
+            ⚖️ <span className="back-link-text">Comparer</span>
+          </button>
+          <button className={`watchlist-btn ${isInWatchlist ? 'active' : ''}`} onClick={toggleWatchlist}>
+            {isInWatchlist ? '★ Watchlist' : '☆ Ajouter'}
+          </button>
+        </div>
       </div>
 
       {/* ── En-tête enrichi ── */}

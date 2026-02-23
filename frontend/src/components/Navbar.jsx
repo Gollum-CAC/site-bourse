@@ -5,6 +5,7 @@ import { Link, useLocation } from 'react-router-dom';
 const LIENS = [
   { to: '/',                 label: 'Accueil',      icone: '🏠', className: '' },
   { to: '/screener',         label: 'Screener',     icone: '🔍', className: 'screener-nav-link' },
+  { to: '/comparateur',      label: 'Comparer',     icone: '⚖️', className: '' },
   { to: '/super-dividendes', label: 'Super Div.',   icone: '💎', className: 'super-div-nav-link' },
   { to: '/calendrier',       label: 'Calendrier',   icone: '📅', className: 'calendrier-nav-link' },
   { to: '/cryptos',          label: 'Cryptos',      icone: '₿',  className: '' },

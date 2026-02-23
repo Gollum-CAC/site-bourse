@@ -12,6 +12,7 @@ import SuperDividendes from './pages/SuperDividendes';
 import CalendrierFinancier from './pages/CalendrierFinancier';
 import ScreenerPage from './pages/ScreenerPage';
 import DbStatus from './pages/DbStatus';
+import Comparateur from './pages/Comparateur';
 import { getQuotaFMP } from './services/api';
 import './App.css';
 
@@ -71,6 +72,7 @@ function App() {
             <Route path="/calendrier"        element={<CalendrierFinancier />} />
             <Route path="/screener"          element={<ScreenerPage />} />
             <Route path="/db-status"         element={<DbStatus />} />
+            <Route path="/comparateur"       element={<Comparateur />} />
           </Routes>
         </main>
 
