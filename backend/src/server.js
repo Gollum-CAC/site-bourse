@@ -27,7 +27,7 @@ app.use('/api/screener', screenerRoutes);
 // Route statut DB détaillée — liste des actions chargées
 app.get('/api/db-status', async (req, res) => {
   try {
-    const pool = require('./db');
+    const pool = require('./config/database');
 
     // Compteurs globaux
     const [stocksRes, quotesRes, quotesFraisRes, profilesRes, ratiosRes] = await Promise.all([
