@@ -1,7 +1,7 @@
 // Crawler : collecte et mise à jour des données actions par roulement
-// Budget RÉEL : 250 appels FMP/jour (plan gratuit)
-// - 200 réservés pour la navigation utilisateur
-// - 50 pour le crawler, répartis entre 4 tâches par rotation
+// Budget : 750 appels FMP/jour (plan Standard)
+// - 150 réservés pour la navigation utilisateur
+// - 600 pour le crawler, répartis entre 4 tâches par rotation
 //
 // Ordre de priorité des tâches :
 //   1. collect_symbols  (1x/semaine, ~5 appels)
@@ -136,13 +136,12 @@ async function collectSymbols() {
 async function updateQuotesBatch() {
   if (!canMakeCall()) return 0;
 
-  // Prioriser : actions sans quote du tout, puis les plus anciennes
-  // On cible surtout les actions populaires (forte capitalisation)
+  // Prioriser : actions sans quote du tout d'abord, puis les plus anciennes
   const { rows } = await pool.query(`
     SELECT s.symbol FROM stocks s
     LEFT JOIN stock_quotes q ON q.symbol = s.symbol
-    WHERE s.price > 0
-      AND (q.symbol IS NULL OR q.updated_at < NOW() - INTERVAL '${CRAWLER_CONFIG.quotesRefreshHours} hours')
+    WHERE q.symbol IS NULL
+       OR q.updated_at < NOW() - INTERVAL '${CRAWLER_CONFIG.quotesRefreshHours} hours'
     ORDER BY s.market_cap DESC NULLS LAST, q.updated_at ASC NULLS FIRST
     LIMIT $1
   `, [CRAWLER_CONFIG.batchSize]);
@@ -184,8 +183,8 @@ async function updateProfilesBatch() {
   const { rows } = await pool.query(`
     SELECT s.symbol FROM stocks s
     LEFT JOIN stock_profiles p ON p.symbol = s.symbol
-    WHERE s.price > 0
-      AND (p.symbol IS NULL OR p.updated_at < NOW() - INTERVAL '${CRAWLER_CONFIG.profileRefreshDays} days')
+    WHERE p.symbol IS NULL
+       OR p.updated_at < NOW() - INTERVAL '${CRAWLER_CONFIG.profileRefreshDays} days'
     ORDER BY s.market_cap DESC NULLS LAST, p.updated_at ASC NULLS FIRST
     LIMIT $1
   `, [CRAWLER_CONFIG.batchSize]);
@@ -227,8 +226,8 @@ async function updateRatiosBatch() {
   const { rows } = await pool.query(`
     SELECT s.symbol FROM stocks s
     LEFT JOIN stock_ratios r ON r.symbol = s.symbol
-    WHERE s.price > 0
-      AND (r.symbol IS NULL OR r.updated_at < NOW() - INTERVAL '${CRAWLER_CONFIG.ratiosRefreshDays} days')
+    WHERE r.symbol IS NULL
+       OR r.updated_at < NOW() - INTERVAL '${CRAWLER_CONFIG.ratiosRefreshDays} days'
     ORDER BY s.market_cap DESC NULLS LAST, r.updated_at ASC NULLS FIRST
     LIMIT $1
   `, [CRAWLER_CONFIG.batchSize]);
@@ -269,9 +268,8 @@ async function updateDividendsBatch() {
 
   const { rows } = await pool.query(`
     SELECT symbol FROM stocks
-    WHERE price > 0
-      AND (last_dividend_update IS NULL
-           OR last_dividend_update < NOW() - INTERVAL '${CRAWLER_CONFIG.dividendRefreshDays} days')
+    WHERE last_dividend_update IS NULL
+       OR last_dividend_update < NOW() - INTERVAL '${CRAWLER_CONFIG.dividendRefreshDays} days'
     ORDER BY last_dividend_update ASC NULLS FIRST
     LIMIT $1
   `, [CRAWLER_CONFIG.batchSize]);
