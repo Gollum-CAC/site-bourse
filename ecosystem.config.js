@@ -1,7 +1,5 @@
-# ================================
-# Configuration PM2 — Site Bourse
-# Lance le backend Node.js en production
-# ================================
+// Configuration PM2 — Site Bourse
+// Lance le backend Node.js en production
 module.exports = {
   apps: [
     {
