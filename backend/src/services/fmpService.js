@@ -143,16 +143,40 @@ async function fmpFetch(endpoint, cacheKey, ttl = cache.DEFAULT_TTL) {
 // === DONNÉES DE BASE ===
 // ==========================================
 
-// Quote simple
+// Routing automatique FMP / Yahoo selon le suffixe du symbole
+const yahoo = require('./yahooService');
+
+// Quote simple — Yahoo pour EU, FMP pour US
 async function getQuote(symbol) {
+  if (yahoo.estSymboleEU(symbol)) {
+    console.log(`[Router] 🇪🇺 ${symbol} → Yahoo Finance`);
+    return yahoo.getQuote(symbol);
+  }
   return fmpFetch(`quote?symbol=${symbol}`, `quote:${symbol}`, 300);
 }
 
-// Batch quotes — 1 seul appel FMP pour plusieurs symboles (ex: AAPL,MSFT,GOOGL)
+// Batch quotes — dispatche chaque symbole vers la bonne source
 async function getBatchQuotes(symbols) {
   if (!symbols || symbols.length === 0) return [];
-  const list = symbols.join(',');
-  return fmpFetch(`quote?symbol=${list}`, `batchQuote:${list}`, 300);
+  const usSymbols = symbols.filter(s => !yahoo.estSymboleEU(s));
+  const euSymbols = symbols.filter(s => yahoo.estSymboleEU(s));
+  const results = [];
+  // FMP pour US (1 appel)
+  if (usSymbols.length > 0) {
+    const list = usSymbols.join(',');
+    try {
+      const data = await fmpFetch(`quote?symbol=${list}`, `batchQuote:${list}`, 300);
+      if (Array.isArray(data)) results.push(...data);
+    } catch (e) { console.warn('[FMP] Batch US échoué:', e.message); }
+  }
+  // Yahoo pour EU (appels individuels, gratuit)
+  for (const sym of euSymbols) {
+    try {
+      const data = await yahoo.getQuote(sym);
+      if (Array.isArray(data)) results.push(...data);
+    } catch (e) { console.warn(`[Yahoo] Quote ${sym} échouée:`, e.message); }
+  }
+  return results;
 }
 
 async function searchStock(query, exchange = '') {
@@ -162,10 +186,12 @@ async function searchStock(query, exchange = '') {
 }
 
 async function getCompanyProfile(symbol) {
+  if (yahoo.estSymboleEU(symbol)) return yahoo.getProfile(symbol);
   return fmpFetch(`profile?symbol=${symbol}`, `profile:${symbol}`, cache.LONG_TTL);
 }
 
 async function getHistoricalPrice(symbol, from, to) {
+  if (yahoo.estSymboleEU(symbol)) return yahoo.getHistoricalPrice(symbol, from, to);
   let endpoint = `historical-price-eod/full?symbol=${symbol}`;
   if (from) endpoint += `&from=${from}`;
   if (to) endpoint += `&to=${to}`;
@@ -187,6 +213,7 @@ async function getKeyMetrics(symbol) {
 }
 
 async function getRatiosTTM(symbol) {
+  if (yahoo.estSymboleEU(symbol)) return yahoo.getRatiosTTM(symbol);
   return fmpFetch(`ratios-ttm?symbol=${symbol}`, `ratiosTTM:${symbol}`, cache.LONG_TTL);
 }
 
