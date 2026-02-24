@@ -143,13 +143,13 @@ async function fmpFetch(endpoint, cacheKey, ttl = cache.DEFAULT_TTL) {
 // === DONNÉES DE BASE ===
 // ==========================================
 
-// Routing automatique FMP / Yahoo selon le suffixe du symbole
-const yahoo = require('./yahooService');
+// Routing automatique FMP / TwelveData selon le suffixe du symbole
+const yahoo = require('./twelveDataService');
 
 // Quote simple — Yahoo pour EU, FMP pour US
 async function getQuote(symbol) {
   if (yahoo.estSymboleEU(symbol)) {
-    console.log(`[Router] 🇪🇺 ${symbol} → Yahoo Finance`);
+    console.log(`[Router] 🇪🇺 ${symbol} → TwelveData`);
     return yahoo.getQuote(symbol);
   }
   return fmpFetch(`quote?symbol=${symbol}`, `quote:${symbol}`, 300);
