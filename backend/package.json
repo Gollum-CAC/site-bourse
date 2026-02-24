@@ -13,6 +13,6 @@
     "express": "^4.21.2",
     "lightweight-charts": "^5.1.0",
     "pg": "^8.13.1",
-    "yahoo-finance2": "^2.11.3"
+    "yahoo-finance2": "^2.14.0"
   }
 }
