@@ -378,9 +378,9 @@ async function getStatsDB() {
 // ============================================
 
 /**
- * Récupère plusieurs quotes en 1 ou 2 appels max :
- * 1. Lit tous les symboles demandés en DB en une seule requête
- * 2. Pour les manquants/périmés, fait 1 seul appel FMP batch
+ * Récupère plusieurs quotes :
+ * 1. Lit tous les symboles demandés en DB en une seule requête (SQL corrigé)
+ * 2. Pour les manquants/périmés, fait des appels FMP individuels (plan gratuit)
  */
 async function getBatchQuotes(symbols) {
   if (!symbols || symbols.length === 0) return [];
@@ -389,14 +389,22 @@ async function getBatchQuotes(symbols) {
   const aRafraichir = [];
 
   try {
-    // Étape 1 : lire tout depuis la DB en une seule requête
-    const placeholders = symbols.map((_, i) => `${i + 1}`).join(',');
-    const { rows } = await pool.query(`
-      SELECT q.*, s.name AS stock_name
-      FROM stock_quotes q
-      LEFT JOIN stocks s ON s.symbol = q.symbol
-      WHERE q.symbol IN (${placeholders})
-    `, symbols);
+    // Étape 1 : lire tout depuis la DB — placeholders $1,$2,... (fix bug SQL)
+    const placeholders = symbols.map((_, i) => '
+
+module.exports = {
+  getQuote, sauvegarderQuote,
+  getBatchQuotes,
+  getProfile, sauvegarderProfile,
+  getRatiosTTM, sauvegarderRatios,
+  getStatsDB,
+  FRESHNESS,
+};
+ + (i + 1)).join(',');
+    const { rows } = await pool.query(
+      'SELECT q.*, s.name AS stock_name FROM stock_quotes q LEFT JOIN stocks s ON s.symbol = q.symbol WHERE q.symbol IN (' + placeholders + ')',
+      symbols
+    );
 
     // Indexer par symbole
     const dbMap = {};
@@ -416,21 +424,17 @@ async function getBatchQuotes(symbols) {
     aRafraichir.push(...symbols);
   }
 
-  // Étape 2 : 1 seul appel FMP pour tous les symboles périmés
-  if (aRafraichir.length > 0) {
+  // Étape 2 : appels FMP individuels (le batch est premium sur plan gratuit)
+  for (const sym of aRafraichir) {
     try {
-      const batchData = await fmpService.getBatchQuotes(aRafraichir);
-      const quotes = Array.isArray(batchData) ? batchData : [];
-
-      // Sauvegarder et indexer
-      for (const q of quotes) {
-        if (q && q.symbol) {
-          await sauvegarderQuote(q.symbol, q);
-          resultats[q.symbol] = q;
-        }
+      const data = await fmpService.getQuote(sym);
+      const quote = Array.isArray(data) ? data[0] : data;
+      if (quote) {
+        await sauvegarderQuote(sym, quote);
+        resultats[sym] = quote;
       }
     } catch (fmpErr) {
-      console.warn('[FMP] Batch quotes échoué:', fmpErr.message);
+      console.warn('[FMP] Quote individuelle échouée ' + sym + ':', fmpErr.message);
     }
   }
 
