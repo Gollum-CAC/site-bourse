@@ -1,33 +1,33 @@
-// Page Comparateur d'actions — jusqu'à 3 actions en overlay
-// Graphique normalisé base 100, tableau de métriques côte à côte
+// Stock Comparator page — up to 3 stocks overlaid on the same base-100 chart
+// Normalized chart + side-by-side metrics table
 import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { createChart, LineSeries } from 'lightweight-charts';
 import { getBatchQuotes, getHistoricalPrice, getRatiosTTM, getCompanyProfile } from '../services/api';
 
-const COULEURS = ['#3b82f6', '#10b981', '#f59e0b'];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b'];
 
 const TIMEFRAMES = [
   { label: '1M',  days: 30   },
   { label: '3M',  days: 90   },
   { label: '6M',  days: 180  },
-  { label: '1A',  days: 365  },
-  { label: '3A',  days: 1095 },
-  { label: '5A',  days: 1825 },
+  { label: '1Y',  days: 365  },
+  { label: '3Y',  days: 1095 },
+  { label: '5Y',  days: 1825 },
 ];
 
-const SUGGESTIONS_RAPIDES = [
-  { label: 'GAFAM',      symbols: ['AAPL', 'MSFT', 'GOOGL'] },
-  { label: 'Luxe FR',    symbols: ['MC.PA', 'RMS.PA', 'OR.PA'] },
-  { label: 'Énergie',    symbols: ['TTE.PA', 'SHEL.L', 'XOM'] },
-  { label: 'Semi-cond.', symbols: ['NVDA', 'ASML.AS', 'AMD'] },
-  { label: 'Banques',    symbols: ['BNP.PA', 'SAN.PA', 'GS'] },
+const QUICK_PICKS = [
+  { label: 'GAFAM',       symbols: ['AAPL', 'MSFT', 'GOOGL'] },
+  { label: 'French Lux.',  symbols: ['MC.PA', 'RMS.PA', 'OR.PA'] },
+  { label: 'Energy',       symbols: ['TTE.PA', 'SHEL.L', 'XOM'] },
+  { label: 'Semis',        symbols: ['NVDA', 'ASML.AS', 'AMD'] },
+  { label: 'Banks',        symbols: ['BNP.PA', 'SAN.PA', 'GS'] },
 ];
 
 function getCurrency(symbol) {
   if (symbol.includes('.PA') || symbol.includes('.DE') || symbol.includes('.AS')) return '€';
-  if (symbol.includes('.L')) return '£';
-  if (symbol.includes('.T')) return '¥';
+  if (symbol.includes('.L'))  return '£';
+  if (symbol.includes('.T'))  return '¥';
   if (symbol.includes('.HK')) return 'HK$';
   return '$';
 }
@@ -36,23 +36,23 @@ function fmtAmt(val) {
   if (val == null || isNaN(val)) return '—';
   const n = Number(val);
   if (Math.abs(n) >= 1e12) return (n / 1e12).toFixed(1) + ' T';
-  if (Math.abs(n) >= 1e9)  return (n / 1e9).toFixed(1)  + ' Mds';
+  if (Math.abs(n) >= 1e9)  return (n / 1e9).toFixed(1)  + ' B';
   if (Math.abs(n) >= 1e6)  return (n / 1e6).toFixed(0)  + ' M';
-  return n.toLocaleString('fr-FR');
+  return n.toLocaleString('en-US');
 }
-function fmt(val, dec = 2) { if (val == null || isNaN(Number(val))) return '—'; return Number(val).toFixed(dec); }
-function fmtPct(val) { if (val == null || isNaN(Number(val))) return '—'; return (Number(val) * 100).toFixed(1) + '%'; }
+function fmt(val, dec = 2)  { if (val == null || isNaN(Number(val))) return '—'; return Number(val).toFixed(dec); }
+function fmtPct(val)        { if (val == null || isNaN(Number(val))) return '—'; return (Number(val) * 100).toFixed(1) + '%'; }
 
-// ─── Graphique multi-courbes normalisé base 100 ───
-function ComparaisonChart({ series }) {
+// ─── Multi-line normalized base-100 chart ───
+function ComparisonChart({ series }) {
   const containerRef = useRef(null);
 
-  function normaliser(data) {
+  function normalize(data) {
     if (!data || data.length === 0) return [];
-    const premier = data[0].close || data[0].value || 0;
-    if (premier === 0) return [];
+    const first = data[0].close || data[0].value || 0;
+    if (first === 0) return [];
     return data
-      .map(d => ({ time: d.date || d.time, value: ((d.close || d.value) / premier) * 100 }))
+      .map(d => ({ time: d.date || d.time, value: ((d.close || d.value) / first) * 100 }))
       .filter(d => d.time && !isNaN(d.value));
   }
 
@@ -68,23 +68,23 @@ function ComparaisonChart({ series }) {
       handleScale: { mouseWheel: true, pinch: true },
     });
 
-    // Ligne de base à 100
+    // Base-100 reference line
     const baseLine = chart.addSeries(LineSeries, { color: 'rgba(255,255,255,0.1)', lineWidth: 1, lineStyle: 2, lastValueVisible: false, priceLineVisible: false });
 
     let baseSet = false;
     series.forEach((s, i) => {
       if (!s.data || s.data.length === 0) return;
-      const norm = normaliser(s.data);
+      const norm = normalize(s.data);
       if (norm.length === 0) return;
       if (!baseSet) {
         baseLine.setData([{ time: norm[0].time, value: 100 }, { time: norm[norm.length - 1].time, value: 100 }]);
         baseSet = true;
       }
       const line = chart.addSeries(LineSeries, {
-        color: COULEURS[i], lineWidth: 2,
+        color: COLORS[i], lineWidth: 2,
         lastValueVisible: true, priceLineVisible: false,
         crosshairMarkerVisible: true, crosshairMarkerRadius: 4,
-        crosshairMarkerBorderColor: COULEURS[i], crosshairMarkerBackgroundColor: COULEURS[i],
+        crosshairMarkerBorderColor: COLORS[i], crosshairMarkerBackgroundColor: COLORS[i],
         title: s.symbol,
       });
       line.setData(norm);
@@ -104,42 +104,42 @@ function ComparaisonChart({ series }) {
     return (
       <div className="lwc-empty">
         <span>📈</span>
-        <span>Ajoutez des actions pour comparer</span>
+        <span>Add stocks to compare</span>
       </div>
     );
   }
   return <div ref={containerRef} className="lwc-container" style={{ height: 360 }} />;
 }
 
-// ─── Page principale ───
+// ─── Main page ───
 function Comparateur() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [symboles, setSymboles] = useState(() => {
+  const [symbols, setSymbols] = useState(() => {
     const s = searchParams.get('symbols');
     return s ? s.split(',').map(x => x.trim().toUpperCase()).filter(Boolean).slice(0, 3) : [];
   });
   const [inputVal, setInputVal]       = useState('');
   const [timeframe, setTimeframe]     = useState('3M');
-  const [donneesActions, setDonneesActions] = useState({});
+  const [stockData, setStockData]     = useState({});
   const [loading, setLoading]         = useState({});
-  const [erreurs, setErreurs]         = useState({});
+  const [errors, setErrors]           = useState({});
 
   // Sync URL
   useEffect(() => {
-    if (symboles.length > 0) setSearchParams({ symbols: symboles.join(',') });
+    if (symbols.length > 0) setSearchParams({ symbols: symbols.join(',') });
     else setSearchParams({});
-  }, [symboles]);
+  }, [symbols]);
 
   useEffect(() => {
-    symboles.forEach(sym => chargerAction(sym));
-  }, [symboles, timeframe]);
+    symbols.forEach(sym => loadStock(sym));
+  }, [symbols, timeframe]);
 
-  async function chargerAction(sym) {
-    // Vérifier si l'historique pour ce timeframe est déjà en cache
-    if (donneesActions[sym]?.history?.[timeframe]) return;
+  async function loadStock(sym) {
+    // Skip if history for this timeframe is already cached
+    if (stockData[sym]?.history?.[timeframe]) return;
 
     setLoading(prev => ({ ...prev, [sym]: true }));
-    setErreurs(prev => ({ ...prev, [sym]: null }));
+    setErrors(prev => ({ ...prev, [sym]: null }));
 
     try {
       const to   = new Date().toISOString().split('T')[0];
@@ -163,7 +163,7 @@ function Comparateur() {
         ? (Array.isArray(ratiosRes.value) ? ratiosRes.value[0] : ratiosRes.value) : null;
       const profile = profileRes.status === 'fulfilled' ? profileRes.value?.[0] : null;
 
-      setDonneesActions(prev => ({
+      setStockData(prev => ({
         ...prev,
         [sym]: {
           quote, profile, ratios,
@@ -171,144 +171,144 @@ function Comparateur() {
         },
       }));
     } catch (err) {
-      setErreurs(prev => ({ ...prev, [sym]: err.message }));
+      setErrors(prev => ({ ...prev, [sym]: err.message }));
     }
     setLoading(prev => ({ ...prev, [sym]: false }));
   }
 
-  function ajouterSymbole(sym) {
+  function addSymbol(sym) {
     const s = sym.trim().toUpperCase();
-    if (!s || symboles.includes(s) || symboles.length >= 3) return;
-    setSymboles(prev => [...prev, s]);
+    if (!s || symbols.includes(s) || symbols.length >= 3) return;
+    setSymbols(prev => [...prev, s]);
     setInputVal('');
   }
 
-  function retirerSymbole(sym) {
-    setSymboles(prev => prev.filter(s => s !== sym));
-    setDonneesActions(prev => { const n = { ...prev }; delete n[sym]; return n; });
+  function removeSymbol(sym) {
+    setSymbols(prev => prev.filter(s => s !== sym));
+    setStockData(prev => { const n = { ...prev }; delete n[sym]; return n; });
   }
 
-  function appliquerSuggestion(syms) {
-    setSymboles(syms);
-    setDonneesActions({});
+  function applyQuickPick(syms) {
+    setSymbols(syms);
+    setStockData({});
   }
 
-  const seriesGraphique = symboles.map(sym => ({
+  const chartSeries = symbols.map(sym => ({
     symbol: sym,
-    data: donneesActions[sym]?.history?.[timeframe] || [],
+    data: stockData[sym]?.history?.[timeframe] || [],
   }));
 
-  function calcVariation(sym) {
-    const data = donneesActions[sym]?.history?.[timeframe];
+  function calcChange(sym) {
+    const data = stockData[sym]?.history?.[timeframe];
     if (!data || data.length < 2) return null;
-    const debut = data[0].close;
-    const fin   = data[data.length - 1].close;
-    if (!debut) return null;
-    return ((fin - debut) / debut) * 100;
+    const start = data[0].close;
+    const end   = data[data.length - 1].close;
+    if (!start) return null;
+    return ((end - start) / start) * 100;
   }
 
   return (
     <div className="comp-page">
 
-      {/* ── En-tête ── */}
+      {/* ── Header ── */}
       <div className="comp-header">
         <div>
-          <h1>Comparateur d'actions</h1>
-          <p className="page-subtitle">Comparez jusqu'à 3 actions sur la même base 100</p>
+          <h1>Stock Comparator</h1>
+          <p className="page-subtitle">Compare up to 3 stocks on the same base-100 chart</p>
         </div>
-        <Link to="/" className="back-link">← Accueil</Link>
+        <Link to="/" className="back-link">← Home</Link>
       </div>
 
-      {/* ── Suggestions rapides ── */}
+      {/* ── Quick picks ── */}
       <div className="comp-suggestions">
-        <span className="comp-suggestions-label">Suggestions :</span>
-        {SUGGESTIONS_RAPIDES.map(sg => (
+        <span className="comp-suggestions-label">Quick picks:</span>
+        {QUICK_PICKS.map(sg => (
           <button
             key={sg.label}
-            className={`comp-suggestion-btn ${JSON.stringify(symboles) === JSON.stringify(sg.symbols) ? 'active' : ''}`}
-            onClick={() => appliquerSuggestion(sg.symbols)}
+            className={`comp-suggestion-btn ${JSON.stringify(symbols) === JSON.stringify(sg.symbols) ? 'active' : ''}`}
+            onClick={() => applyQuickPick(sg.symbols)}
           >{sg.label}</button>
         ))}
       </div>
 
-      {/* ── Slots sélection ── */}
+      {/* ── Symbol slots ── */}
       <div className="comp-selection">
-        {symboles.map((sym, i) => {
-          const d = donneesActions[sym];
-          const variation = calcVariation(sym);
-          const isPos = variation != null && variation >= 0;
+        {symbols.map((sym, i) => {
+          const d = stockData[sym];
+          const change = calcChange(sym);
+          const isPos  = change != null && change >= 0;
           return (
-            <div key={sym} className="comp-slot" style={{ '--slot-color': COULEURS[i] }}>
+            <div key={sym} className="comp-slot" style={{ '--slot-color': COLORS[i] }}>
               <div className="comp-slot-header">
                 {d?.profile?.image && (
                   <img src={d.profile.image} alt={sym} className="comp-slot-logo"
                        onError={e => e.target.style.display = 'none'} />
                 )}
                 <div className="comp-slot-info">
-                  <span className="comp-slot-symbol" style={{ color: COULEURS[i] }}>{sym}</span>
+                  <span className="comp-slot-symbol" style={{ color: COLORS[i] }}>{sym}</span>
                   <span className="comp-slot-name">{d?.quote?.name || d?.profile?.companyName || '...'}</span>
                 </div>
-                <button className="comp-slot-remove" onClick={() => retirerSymbole(sym)}>×</button>
+                <button className="comp-slot-remove" onClick={() => removeSymbol(sym)}>×</button>
               </div>
               {loading[sym] ? (
-                <div className="comp-slot-loading">⏳ Chargement...</div>
+                <div className="comp-slot-loading">⏳ Loading...</div>
               ) : d?.quote ? (
                 <div className="comp-slot-prix">
                   <span className="comp-slot-valeur">{Number(d.quote.price).toFixed(2)} {getCurrency(sym)}</span>
-                  {variation != null && (
+                  {change != null && (
                     <span className={`comp-slot-variation ${isPos ? 'pos' : 'neg'}`}>
-                      {isPos ? '▲' : '▼'} {Math.abs(variation).toFixed(2)}%
+                      {isPos ? '▲' : '▼'} {Math.abs(change).toFixed(2)}%
                     </span>
                   )}
                 </div>
-              ) : erreurs[sym] ? (
-                <div className="comp-slot-erreur">⚠️ Erreur chargement</div>
+              ) : errors[sym] ? (
+                <div className="comp-slot-erreur">⚠️ Failed to load</div>
               ) : null}
             </div>
           );
         })}
 
-        {/* Slot ajout */}
-        {symboles.length < 3 && (
+        {/* Add slot */}
+        {symbols.length < 3 && (
           <div className="comp-slot comp-slot-add">
-            <form onSubmit={e => { e.preventDefault(); ajouterSymbole(inputVal); }}>
+            <form onSubmit={e => { e.preventDefault(); addSymbol(inputVal); }}>
               <input
                 type="text"
                 value={inputVal}
                 onChange={e => setInputVal(e.target.value.toUpperCase())}
-                placeholder={symboles.length === 0 ? 'Ex: AAPL' : 'Ajouter...'}
+                placeholder={symbols.length === 0 ? 'e.g. AAPL' : 'Add...'}
                 className="comp-add-input"
                 maxLength={12}
-                autoFocus={symboles.length === 0}
+                autoFocus={symbols.length === 0}
               />
               <button type="submit" className="comp-add-btn" disabled={!inputVal.trim()}>
-                + Ajouter
+                + Add
               </button>
             </form>
             <p className="comp-add-hint">
-              {symboles.length === 0
-                ? 'Entrez un symbole boursier (ex : MC.PA, NVDA…)'
-                : `${3 - symboles.length} emplacement${3 - symboles.length > 1 ? 's' : ''} disponible${3 - symboles.length > 1 ? 's' : ''}`}
+              {symbols.length === 0
+                ? 'Enter a ticker symbol (e.g. MC.PA, NVDA…)'
+                : `${3 - symbols.length} slot${3 - symbols.length > 1 ? 's' : ''} remaining`}
             </p>
           </div>
         )}
       </div>
 
-      {/* ── Graphique ── */}
-      {symboles.length > 0 && (
+      {/* ── Chart ── */}
+      {symbols.length > 0 && (
         <div className="detail-card" style={{ marginBottom: 16 }}>
           <div className="comp-chart-header">
             <div className="comp-legende">
-              {symboles.map((sym, i) => {
-                const variation = calcVariation(sym);
-                const isPos = variation != null && variation >= 0;
+              {symbols.map((sym, i) => {
+                const change = calcChange(sym);
+                const isPos  = change != null && change >= 0;
                 return (
                   <div key={sym} className="comp-legende-item">
-                    <span className="comp-legende-dot" style={{ background: COULEURS[i] }} />
-                    <span className="comp-legende-sym" style={{ color: COULEURS[i] }}>{sym}</span>
-                    {variation != null && (
+                    <span className="comp-legende-dot" style={{ background: COLORS[i] }} />
+                    <span className="comp-legende-sym" style={{ color: COLORS[i] }}>{sym}</span>
+                    {change != null && (
                       <span className={`comp-legende-var ${isPos ? 'pos' : 'neg'}`}>
-                        {isPos ? '+' : ''}{variation.toFixed(2)}%
+                        {isPos ? '+' : ''}{change.toFixed(2)}%
                       </span>
                     )}
                   </div>
@@ -326,124 +326,124 @@ function Comparateur() {
             </div>
           </div>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginBottom: 8, textAlign: 'right' }}>
-            Base 100 — performance relative depuis le début de la période
+            Base 100 — relative performance since start of period
           </div>
-          <ComparaisonChart series={seriesGraphique} />
+          <ComparisonChart series={chartSeries} />
         </div>
       )}
 
-      {/* ── Tableau métriques ── */}
-      {symboles.some(sym => donneesActions[sym]?.quote) && (
+      {/* ── Metrics table ── */}
+      {symbols.some(sym => stockData[sym]?.quote) && (
         <div className="detail-card">
-          <h3 style={{ marginBottom: 16 }}>Comparaison des métriques</h3>
+          <h3 style={{ marginBottom: 16 }}>Metrics Comparison</h3>
           <div className="comp-table-wrapper">
             <table className="comp-table">
               <thead>
                 <tr>
-                  <th className="comp-th-label">Métrique</th>
-                  {symboles.map((sym, i) => (
-                    <th key={sym} style={{ color: COULEURS[i] }}>{sym}</th>
+                  <th className="comp-th-label">Metric</th>
+                  {symbols.map((sym, i) => (
+                    <th key={sym} style={{ color: COLORS[i] }}>{sym}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {/* Prix & Marché */}
-                <tr className="comp-tr-section"><td colSpan={symboles.length + 1}>Prix &amp; Marché</td></tr>
+                {/* Price & Market */}
+                <tr className="comp-tr-section"><td colSpan={symbols.length + 1}>Price &amp; Market</td></tr>
                 {[
-                  ['Prix',           sym => { const q = donneesActions[sym]?.quote; return q ? `${Number(q.price).toFixed(2)} ${getCurrency(sym)}` : '—'; }],
-                  ['Capitalisation', sym => fmtAmt(donneesActions[sym]?.quote?.marketCap)],
-                  ['Volume',         sym => { const v = donneesActions[sym]?.quote?.volume; return v ? `${(v/1e6).toFixed(1)} M` : '—'; }],
-                  ['Haut 52s',       sym => { const q = donneesActions[sym]?.quote; return q?.yearHigh ? `${Number(q.yearHigh).toFixed(2)} ${getCurrency(sym)}` : '—'; }],
-                  ['Bas 52s',        sym => { const q = donneesActions[sym]?.quote; return q?.yearLow  ? `${Number(q.yearLow ).toFixed(2)} ${getCurrency(sym)}` : '—'; }],
+                  ['Price',       sym => { const q = stockData[sym]?.quote; return q ? `${Number(q.price).toFixed(2)} ${getCurrency(sym)}` : '—'; }],
+                  ['Market Cap',  sym => fmtAmt(stockData[sym]?.quote?.marketCap)],
+                  ['Volume',      sym => { const v = stockData[sym]?.quote?.volume; return v ? `${(v/1e6).toFixed(1)} M` : '—'; }],
+                  ['52w High',    sym => { const q = stockData[sym]?.quote; return q?.yearHigh ? `${Number(q.yearHigh).toFixed(2)} ${getCurrency(sym)}` : '—'; }],
+                  ['52w Low',     sym => { const q = stockData[sym]?.quote; return q?.yearLow  ? `${Number(q.yearLow).toFixed(2)} ${getCurrency(sym)}` : '—'; }],
                 ].map(([label, fn]) => (
                   <tr key={label}>
                     <td className="comp-td-label">{label}</td>
-                    {symboles.map(sym => <td key={sym}>{fn(sym)}</td>)}
+                    {symbols.map(sym => <td key={sym}>{fn(sym)}</td>)}
                   </tr>
                 ))}
 
-                {/* Valorisation */}
-                <tr className="comp-tr-section"><td colSpan={symboles.length + 1}>Valorisation</td></tr>
+                {/* Valuation */}
+                <tr className="comp-tr-section"><td colSpan={symbols.length + 1}>Valuation</td></tr>
                 {[
-                  ['P/E (TTM)',   sym => fmt(donneesActions[sym]?.ratios?.peRatioTTM)],
-                  ['P/B (TTM)',   sym => fmt(donneesActions[sym]?.ratios?.priceToBookRatioTTM)],
-                  ['P/S (TTM)',   sym => fmt(donneesActions[sym]?.ratios?.priceToSalesRatioTTM)],
-                  ['EV/EBITDA',  sym => fmt(donneesActions[sym]?.ratios?.enterpriseValueOverEBITDATTM)],
-                  ['PEG Ratio',  sym => fmt(donneesActions[sym]?.ratios?.pegRatioTTM)],
+                  ['P/E (TTM)',   sym => fmt(stockData[sym]?.ratios?.peRatioTTM)],
+                  ['P/B (TTM)',   sym => fmt(stockData[sym]?.ratios?.priceToBookRatioTTM)],
+                  ['P/S (TTM)',   sym => fmt(stockData[sym]?.ratios?.priceToSalesRatioTTM)],
+                  ['EV/EBITDA',  sym => fmt(stockData[sym]?.ratios?.enterpriseValueOverEBITDATTM)],
+                  ['PEG Ratio',  sym => fmt(stockData[sym]?.ratios?.pegRatioTTM)],
                 ].map(([label, fn]) => (
                   <tr key={label}>
                     <td className="comp-td-label">{label}</td>
-                    {symboles.map(sym => {
-                      const val = fn(sym);
-                      const vals = symboles.map(s => parseFloat(fn(s))).filter(v => !isNaN(v));
+                    {symbols.map(sym => {
+                      const val  = fn(sym);
+                      const vals = symbols.map(s => parseFloat(fn(s))).filter(v => !isNaN(v));
                       const isBest = vals.length > 1 && parseFloat(val) === Math.min(...vals) && val !== '—';
                       return <td key={sym} className={isBest ? 'comp-best' : ''}>{val}</td>;
                     })}
                   </tr>
                 ))}
 
-                {/* Rentabilité */}
-                <tr className="comp-tr-section"><td colSpan={symboles.length + 1}>Rentabilité</td></tr>
+                {/* Profitability */}
+                <tr className="comp-tr-section"><td colSpan={symbols.length + 1}>Profitability</td></tr>
                 {[
-                  ['ROE',           sym => fmtPct(donneesActions[sym]?.ratios?.returnOnEquityTTM)],
-                  ['ROA',           sym => fmtPct(donneesActions[sym]?.ratios?.returnOnAssetsTTM)],
-                  ['Marge brute',   sym => fmtPct(donneesActions[sym]?.ratios?.grossProfitMarginTTM)],
-                  ['Marge nette',   sym => fmtPct(donneesActions[sym]?.ratios?.netProfitMarginTTM)],
-                  ['Marge opérat.', sym => fmtPct(donneesActions[sym]?.ratios?.operatingProfitMarginTTM)],
+                  ['ROE',            sym => fmtPct(stockData[sym]?.ratios?.returnOnEquityTTM)],
+                  ['ROA',            sym => fmtPct(stockData[sym]?.ratios?.returnOnAssetsTTM)],
+                  ['Gross Margin',   sym => fmtPct(stockData[sym]?.ratios?.grossProfitMarginTTM)],
+                  ['Net Margin',     sym => fmtPct(stockData[sym]?.ratios?.netProfitMarginTTM)],
+                  ['Oper. Margin',   sym => fmtPct(stockData[sym]?.ratios?.operatingProfitMarginTTM)],
                 ].map(([label, fn]) => (
                   <tr key={label}>
                     <td className="comp-td-label">{label}</td>
-                    {symboles.map(sym => {
-                      const val = fn(sym);
-                      const vals = symboles.map(s => parseFloat(fn(s))).filter(v => !isNaN(v));
+                    {symbols.map(sym => {
+                      const val  = fn(sym);
+                      const vals = symbols.map(s => parseFloat(fn(s))).filter(v => !isNaN(v));
                       const isBest = vals.length > 1 && parseFloat(val) === Math.max(...vals) && val !== '—';
                       return <td key={sym} className={isBest ? 'comp-best' : ''}>{val}</td>;
                     })}
                   </tr>
                 ))}
 
-                {/* Dividende */}
-                <tr className="comp-tr-section"><td colSpan={symboles.length + 1}>Dividende</td></tr>
+                {/* Dividend */}
+                <tr className="comp-tr-section"><td colSpan={symbols.length + 1}>Dividend</td></tr>
                 {[
-                  ['Rendement',    sym => { const r = donneesActions[sym]?.ratios?.dividendYielPercentageTTM; return r != null ? fmt(r, 2) + '%' : '—'; }],
-                  ['Payout ratio', sym => { const r = donneesActions[sym]?.ratios?.payoutRatioTTM; return r != null ? fmt(r * 100, 1) + '%' : '—'; }],
+                  ['Yield',         sym => { const r = stockData[sym]?.ratios?.dividendYielPercentageTTM; return r != null ? fmt(r, 2) + '%' : '—'; }],
+                  ['Payout Ratio',  sym => { const r = stockData[sym]?.ratios?.payoutRatioTTM; return r != null ? fmt(r * 100, 1) + '%' : '—'; }],
                 ].map(([label, fn]) => (
                   <tr key={label}>
                     <td className="comp-td-label">{label}</td>
-                    {symboles.map(sym => <td key={sym}>{fn(sym)}</td>)}
+                    {symbols.map(sym => <td key={sym}>{fn(sym)}</td>)}
                   </tr>
                 ))}
 
-                {/* Santé */}
-                <tr className="comp-tr-section"><td colSpan={symboles.length + 1}>Santé financière</td></tr>
+                {/* Financial health */}
+                <tr className="comp-tr-section"><td colSpan={symbols.length + 1}>Financial Health</td></tr>
                 {[
-                  ['Dette/Equity',  sym => fmt(donneesActions[sym]?.ratios?.debtEquityRatioTTM)],
-                  ['Current ratio', sym => fmt(donneesActions[sym]?.ratios?.currentRatioTTM)],
-                  ['Secteur',       sym => donneesActions[sym]?.profile?.sector || '—'],
-                  ['Pays',          sym => donneesActions[sym]?.profile?.country || '—'],
+                  ['Debt / Equity',  sym => fmt(stockData[sym]?.ratios?.debtEquityRatioTTM)],
+                  ['Current Ratio',  sym => fmt(stockData[sym]?.ratios?.currentRatioTTM)],
+                  ['Sector',         sym => stockData[sym]?.profile?.sector  || '—'],
+                  ['Country',        sym => stockData[sym]?.profile?.country || '—'],
                 ].map(([label, fn]) => (
                   <tr key={label}>
                     <td className="comp-td-label">{label}</td>
-                    {symboles.map(sym => <td key={sym}>{fn(sym)}</td>)}
+                    {symbols.map(sym => <td key={sym}>{fn(sym)}</td>)}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <p style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: 12 }}>
-            ✦ La meilleure valeur de chaque rangée est surlignée en vert.
+            ✦ Best value in each row is highlighted in green.
           </p>
         </div>
       )}
 
-      {/* État vide */}
-      {symboles.length === 0 && (
+      {/* Empty state */}
+      {symbols.length === 0 && (
         <div className="comp-empty">
           <div className="comp-empty-icon">📊</div>
-          <h2>Comparez des actions en quelques secondes</h2>
-          <p>Ajoutez 2 ou 3 symboles boursiers pour voir leur performance relative et leurs métriques côte à côte.</p>
+          <h2>Compare stocks in seconds</h2>
+          <p>Add 2 or 3 ticker symbols to see their relative performance and metrics side by side.</p>
           <p style={{ marginTop: 8, fontSize: '0.85rem', color: 'var(--text-dim)' }}>
-            Exemples : AAPL · MSFT · MC.PA · ASML.AS · TTE.PA
+            Examples: AAPL · MSFT · MC.PA · ASML.AS · TTE.PA
           </p>
         </div>
       )}
