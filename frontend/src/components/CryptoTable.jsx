@@ -1,20 +1,20 @@
-// Composant tableau des cryptomonnaies
+// Cryptocurrency table component
 function CryptoTable({ cryptos }) {
   if (!cryptos || cryptos.length === 0) {
-    return <p className="loading">Chargement des cryptomonnaies...</p>;
+    return <p className="loading">Loading cryptocurrencies...</p>;
   }
 
   return (
     <div className="crypto-section">
-      <h2>🪙 Cryptomonnaies</h2>
+      <h2>🪙 Cryptocurrencies</h2>
       <table className="crypto-table">
         <thead>
           <tr>
             <th>#</th>
-            <th>Nom</th>
-            <th>Prix (EUR)</th>
-            <th>Variation 24h</th>
-            <th>Cap. marché</th>
+            <th>Name</th>
+            <th>Price (EUR)</th>
+            <th>24h Change</th>
+            <th>Market Cap</th>
           </tr>
         </thead>
         <tbody>
@@ -29,11 +29,11 @@ function CryptoTable({ cryptos }) {
                   <strong>{crypto.name}</strong>
                   <span className="crypto-symbol">{crypto.symbol?.toUpperCase()}</span>
                 </td>
-                <td>{crypto.current_price?.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</td>
+                <td>{crypto.current_price?.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })}</td>
                 <td style={{ color: changeColor }}>
                   {isPositive ? '▲' : '▼'} {crypto.price_change_percentage_24h?.toFixed(2)}%
                 </td>
-                <td>{(crypto.market_cap / 1e9)?.toFixed(2)} Mds €</td>
+                <td>{(crypto.market_cap / 1e9)?.toFixed(2)} B €</td>
               </tr>
             );
           })}

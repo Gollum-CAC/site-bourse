@@ -1,31 +1,24 @@
-// Page complète des actualités financières
+// News page
 import { useState, useEffect } from 'react';
 import { getNews } from '../services/api';
 
 function NewsPage() {
-  const [news, setNews] = useState(null);
+  const [news, setNews]       = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadNews();
-  }, []);
+  useEffect(() => { loadNews(); }, []);
 
   async function loadNews() {
-    try {
-      const data = await getNews();
-      setNews(data);
-    } catch (err) {
-      console.error('Erreur chargement news:', err);
-    }
+    try { setNews(await getNews()); } catch {}
     setLoading(false);
   }
 
-  if (loading) return <p className="loading">Chargement des actualités...</p>;
+  if (loading) return <p className="loading">Loading news...</p>;
 
   return (
     <div className="news-page">
-      <h1>📰 Actualités financières</h1>
-      <p className="page-subtitle">Les dernières nouvelles des marchés</p>
+      <h1>📰 Financial News</h1>
+      <p className="page-subtitle">Latest market headlines</p>
 
       <div className="news-grid news-grid-full">
         {news?.articles?.map((article, index) => (
@@ -34,7 +27,9 @@ function NewsPage() {
             <div className="news-content">
               <h4>{article.title}</h4>
               {article.description && <p className="news-desc">{article.description.slice(0, 120)}...</p>}
-              <p className="news-source">{article.source?.name} • {new Date(article.publishedAt).toLocaleDateString('fr-FR')}</p>
+              <p className="news-source">
+                {article.source?.name} • {new Date(article.publishedAt).toLocaleDateString('en-US')}
+              </p>
             </div>
           </a>
         ))}

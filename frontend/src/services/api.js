@@ -1,280 +1,62 @@
-// Service pour communiquer avec notre backend API
-// En local : appel direct localhost:3001
-// Via ngrok/réseau : on cherche le backend sur le même host mais port 3001
-// (ngrok expose le frontend sur 5173, le backend tourne séparément sur 3001)
+// Service API — Plan FMP GRATUIT
+// Endpoints disponibles : quote, batch quotes, search, profile, historical, dividends, dividend-calendar
+// Supprimés : ratios-ttm, income, bilan, cashflow, earnings, analystes, insider, institutionnels, news FMP
+
 const hostname = window.location.hostname;
 const isLocal  = hostname === 'localhost' || hostname === '127.0.0.1';
-
-// En local : direct localhost:3001
-// Via ngrok/IP réseau : Vite proxifie /api → backend (cf. vite.config.js)
 const API_BASE = isLocal ? 'http://localhost:3001/api' : '/api';
 
-// ==========================================
-// === ACTIONS — DONNÉES DE BASE ===
-// ==========================================
-
-export async function getQuote(symbol) {
-  const response = await fetch(`${API_BASE}/actions/quote/${symbol}`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération du cours');
-  return response.json();
+async function apiFetch(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json();
 }
 
-// Batch quotes — 1 seul appel pour plusieurs symboles
-export async function getBatchQuotes(symbols) {
-  if (!symbols || symbols.length === 0) return [];
-  const response = await fetch(`${API_BASE}/actions/quotes?symbols=${symbols.join(',')}`);
-  if (!response.ok) throw new Error('Erreur batch quotes');
-  return response.json();
-}
+// === QUOTES ===
+export const getQuote          = (symbol)  => apiFetch(`${API_BASE}/actions/quote/${symbol}`);
+export const getBatchQuotes    = (symbols) => apiFetch(`${API_BASE}/actions/quotes?symbols=${symbols.join(',')}`);
+export const getSymbols        = ()        => apiFetch(`${API_BASE}/actions/symbols`);
 
-export async function searchStock(query, exchange = '') {
-  let url = `${API_BASE}/actions/search?q=${query}`;
-  if (exchange) url += `&exchange=${exchange}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Erreur lors de la recherche');
-  return response.json();
-}
+// === RECHERCHE ===
+export const searchStock       = (query)   => apiFetch(`${API_BASE}/actions/search?q=${encodeURIComponent(query)}`);
 
-export async function getCompanyProfile(symbol) {
-  const response = await fetch(`${API_BASE}/actions/profil/${symbol}`);
-  if (!response.ok) throw new Error('Erreur lors de la récupération du profil');
-  return response.json();
-}
+// === PROFIL ===
+export const getCompanyProfile = (symbol)  => apiFetch(`${API_BASE}/actions/profil/${symbol}`);
 
-export async function getHistoricalPrice(symbol, from, to) {
+// === HISTORIQUE (EOD, 5 ans) ===
+export function getHistoricalPrice(symbol, from, to) {
   let url = `${API_BASE}/actions/historique/${symbol}`;
-  const params = [];
-  if (from) params.push(`from=${from}`);
-  if (to) params.push(`to=${to}`);
-  if (params.length) url += `?${params.join('&')}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Erreur lors de la récupération de l\'historique');
-  return response.json();
+  const p = [];
+  if (from) p.push(`from=${from}`);
+  if (to)   p.push(`to=${to}`);
+  if (p.length) url += `?${p.join('&')}`;
+  return apiFetch(url);
 }
 
-export async function getStockScreener(exchange = '', limit = 20) {
-  const response = await fetch(`${API_BASE}/actions/screener?exchange=${exchange}&limit=${limit}`);
-  if (!response.ok) throw new Error('Erreur screener');
-  return response.json();
-}
+// === DIVIDENDES ===
+export const getDividends = (symbol) => apiFetch(`${API_BASE}/actions/dividendes/${symbol}`);
 
-// ==========================================
-// === ACTIONS — RATIOS ===
-// ==========================================
-
-export async function getKeyMetrics(symbol) {
-  const response = await fetch(`${API_BASE}/actions/ratios/${symbol}`);
-  if (!response.ok) throw new Error('Erreur ratios');
-  return response.json();
-}
-
-export async function getRatiosTTM(symbol) {
-  const response = await fetch(`${API_BASE}/actions/ratios-ttm/${symbol}`);
-  if (!response.ok) throw new Error('Erreur ratios TTM');
-  return response.json();
-}
-
-// ==========================================
-// === ACTIONS — ÉTATS FINANCIERS ===
-// ==========================================
-
-export async function getIncomeStatement(symbol, period = 'annual') {
-  const response = await fetch(`${API_BASE}/actions/income/${symbol}?period=${period}`);
-  if (!response.ok) throw new Error('Erreur compte de résultat');
-  return response.json();
-}
-
-export async function getBalanceSheet(symbol, period = 'annual') {
-  const response = await fetch(`${API_BASE}/actions/bilan/${symbol}?period=${period}`);
-  if (!response.ok) throw new Error('Erreur bilan');
-  return response.json();
-}
-
-export async function getCashFlow(symbol, period = 'annual') {
-  const response = await fetch(`${API_BASE}/actions/cashflow/${symbol}?period=${period}`);
-  if (!response.ok) throw new Error('Erreur cash flow');
-  return response.json();
-}
-
-// ==========================================
-// === ACTIONS — DIVIDENDES & CALENDRIER ===
-// ==========================================
-
-export async function getDividends(symbol) {
-  const response = await fetch(`${API_BASE}/actions/dividendes/${symbol}`);
-  if (!response.ok) throw new Error('Erreur dividendes');
-  return response.json();
-}
-
-export async function getDividendCalendar(from, to) {
+export function getDividendCalendar(from, to) {
   let url = `${API_BASE}/actions/calendrier-dividendes?`;
   if (from) url += `from=${from}&`;
-  if (to) url += `to=${to}&`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Erreur calendrier dividendes');
-  return response.json();
+  if (to)   url += `to=${to}`;
+  return apiFetch(url);
 }
 
-// ==========================================
-// === ACTIONS — RÉSULTATS / EARNINGS ===
-// ==========================================
+// === SUPER DIVIDENDES (DB locale) ===
+export const getSuperDividendes = (params = '') => apiFetch(`${API_BASE}/dividendes/super${params}`);
 
-// Historique des résultats (EPS réel vs estimé)
-export async function getEarnings(symbol) {
-  const response = await fetch(`${API_BASE}/actions/earnings/${symbol}`);
-  if (!response.ok) throw new Error('Erreur earnings');
-  return response.json();
-}
+// === SCREENER (DB locale) ===
+export const getScreener = (params) => apiFetch(`${API_BASE}/screener?${params}`);
 
-// Calendrier des résultats à venir
-export async function getEarningsCalendar(from, to) {
-  let url = `${API_BASE}/actions/calendrier-earnings?`;
-  if (from) url += `from=${from}&`;
-  if (to) url += `to=${to}&`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Erreur calendrier earnings');
-  return response.json();
-}
+// === CRYPTOS (CoinGecko — inchangé) ===
+export const getCryptos      = (limit = 20) => apiFetch(`${API_BASE}/cryptos?limit=${limit}`);
+export const getCryptoDetail = (id)         => apiFetch(`${API_BASE}/cryptos/${id}`);
 
-// Résultats confirmés
-export async function getEarningsConfirmed(from, to) {
-  let url = `${API_BASE}/actions/earnings-confirmes?`;
-  if (from) url += `from=${from}&`;
-  if (to) url += `to=${to}&`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Erreur earnings confirmés');
-  return response.json();
-}
+// === ACTUALITÉS (NewsAPI — inchangé) ===
+export const getNews      = () => apiFetch(`${API_BASE}/news`);
+export const getHeadlines = () => apiFetch(`${API_BASE}/news/headlines`);
 
-// ==========================================
-// === ACTIONS — CONSENSUS ANALYSTES ===
-// ==========================================
-
-// Estimations analystes (revenus + EPS attendus)
-export async function getAnalystConsensus(symbol) {
-  const response = await fetch(`${API_BASE}/actions/consensus/${symbol}`);
-  if (!response.ok) throw new Error('Erreur consensus');
-  return response.json();
-}
-
-// Objectifs de prix individuels
-export async function getPriceTarget(symbol) {
-  const response = await fetch(`${API_BASE}/actions/objectif-prix/${symbol}`);
-  if (!response.ok) throw new Error('Erreur objectif prix');
-  return response.json();
-}
-
-// Consensus résumé (buy/hold/sell + prix moyen/haut/bas)
-export async function getPriceTargetConsensus(symbol) {
-  const response = await fetch(`${API_BASE}/actions/objectif-consensus/${symbol}`);
-  if (!response.ok) throw new Error('Erreur consensus objectif');
-  return response.json();
-}
-
-// Notes analystes (upgrades/downgrades)
-export async function getAnalystGrades(symbol) {
-  const response = await fetch(`${API_BASE}/actions/grades/${symbol}`);
-  if (!response.ok) throw new Error('Erreur grades');
-  return response.json();
-}
-
-// ==========================================
-// === ACTIONS — INSIDER TRADING ===
-// ==========================================
-
-// Transactions des dirigeants
-export async function getInsiderTrading(symbol) {
-  const response = await fetch(`${API_BASE}/actions/insider/${symbol}`);
-  if (!response.ok) throw new Error('Erreur insider');
-  return response.json();
-}
-
-// Détenteurs institutionnels
-export async function getInstitutionalHolders(symbol) {
-  const response = await fetch(`${API_BASE}/actions/institutionnels/${symbol}`);
-  if (!response.ok) throw new Error('Erreur institutionnels');
-  return response.json();
-}
-
-// ==========================================
-// === ACTIONS — ACTUALITÉS SPÉCIFIQUES ===
-// ==========================================
-
-// Actus liées à une action
-export async function getStockNews(symbol, limit = 20) {
-  const response = await fetch(`${API_BASE}/actions/news/${symbol}?limit=${limit}`);
-  if (!response.ok) throw new Error('Erreur stock news');
-  return response.json();
-}
-
-// Actus financières générales (via FMP)
-export async function getFmpNews(limit = 30) {
-  const response = await fetch(`${API_BASE}/actions/news-generales?limit=${limit}`);
-  if (!response.ok) throw new Error('Erreur FMP news');
-  return response.json();
-}
-
-// Communiqués de presse d'une entreprise
-export async function getPressReleases(symbol, limit = 10) {
-  const response = await fetch(`${API_BASE}/actions/communiques/${symbol}?limit=${limit}`);
-  if (!response.ok) throw new Error('Erreur communiqués');
-  return response.json();
-}
-
-// ==========================================
-// === SUPER DIVIDENDES ===
-// ==========================================
-
-export async function getSuperDividendes() {
-  const response = await fetch(`${API_BASE}/dividendes/super`);
-  if (!response.ok) throw new Error('Erreur super dividendes');
-  return response.json();
-}
-
-// ==========================================
-// === CRYPTOMONNAIES ===
-// ==========================================
-
-export async function getCryptos(limit = 20) {
-  const response = await fetch(`${API_BASE}/cryptos?limit=${limit}`);
-  if (!response.ok) throw new Error('Erreur cryptos');
-  return response.json();
-}
-
-export async function getCryptoDetail(id) {
-  const response = await fetch(`${API_BASE}/cryptos/${id}`);
-  if (!response.ok) throw new Error('Erreur détail crypto');
-  return response.json();
-}
-
-// ==========================================
-// === ACTUALITÉS (NewsAPI) ===
-// ==========================================
-
-export async function getNews() {
-  const response = await fetch(`${API_BASE}/news`);
-  if (!response.ok) throw new Error('Erreur actualités');
-  return response.json();
-}
-
-export async function getHeadlines() {
-  const response = await fetch(`${API_BASE}/news/headlines`);
-  if (!response.ok) throw new Error('Erreur titres');
-  return response.json();
-}
-
-// ==========================================
-// === DB STATUS ===
-// ==========================================
-
-export async function getDbStatus() {
-  const response = await fetch(`${API_BASE}/db-status`);
-  if (!response.ok) throw new Error('Erreur DB status');
-  return response.json();
-}
-
-export async function getQuotaFMP() {
-  const response = await fetch(`${API_BASE.replace('/api', '')}/api/quota`);
-  if (!response.ok) return { depasse: false, resetTime: null };
-  return response.json();
-}
+// === INFRA ===
+export const getDbStatus = () => apiFetch(`${API_BASE}/db-status`);
+export const getQuotaFMP = () => fetch(`${API_BASE}/quota`).then(r => r.json()).catch(() => ({ depasse: false }));

@@ -1,38 +1,35 @@
-// Composant de navigation principal — sticky, responsive, indicateur page active
+// Main navigation bar — sticky, responsive, active page indicator
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-const LIENS = [
-  { to: '/',                 label: 'Accueil',      icone: '🏠', className: '' },
-  { to: '/screener',         label: 'Screener',     icone: '🔍', className: 'screener-nav-link' },
-  { to: '/comparateur',      label: 'Comparer',     icone: '⚖️', className: '' },
-  { to: '/super-dividendes', label: 'Super Div.',   icone: '💎', className: 'super-div-nav-link' },
-  { to: '/calendrier',       label: 'Calendrier',   icone: '📅', className: 'calendrier-nav-link' },
-  { to: '/cryptos',          label: 'Cryptos',      icone: '₿',  className: '' },
-  { to: '/news',             label: 'Actualités',   icone: '📰', className: '' },
-  { to: '/watchlist',        label: 'Watchlist',    icone: '⭐', className: 'watchlist-nav-link' },
-  { to: '/db-status',        label: 'DB',           icone: '🖥️', className: 'db-status-nav-link' },
+const LINKS = [
+  { to: '/',                 label: 'Home',        icone: '🏠', className: '' },
+  { to: '/screener',         label: 'Screener',    icone: '🔍', className: 'screener-nav-link' },
+  { to: '/comparateur',      label: 'Compare',     icone: '⚖️', className: '' },
+  { to: '/super-dividendes', label: 'Super Div.',  icone: '💎', className: 'super-div-nav-link' },
+  { to: '/calendrier',       label: 'Calendar',    icone: '📅', className: 'calendrier-nav-link' },
+  { to: '/cryptos',          label: 'Crypto',      icone: '₿',  className: '' },
+  { to: '/news',             label: 'News',        icone: '📰', className: '' },
+  { to: '/watchlist',        label: 'Watchlist',   icone: '⭐', className: 'watchlist-nav-link' },
+  { to: '/db-status',        label: 'DB',          icone: '🖥️', className: 'db-status-nav-link' },
 ];
 
 function Navbar() {
   const location = useLocation();
-  const [menuOuvert, setMenuOuvert] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  // Fermer le menu si on navigue
-  useEffect(() => { setMenuOuvert(false); }, [location.pathname]);
+  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
 
-  // Bloquer le scroll body quand le menu est ouvert
   useEffect(() => {
-    document.body.style.overflow = menuOuvert ? 'hidden' : '';
+    document.body.style.overflow = menuOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [menuOuvert]);
+  }, [menuOpen]);
 
-  // Fermer le menu si on clique sur l'overlay
   function handleOverlayClick(e) {
-    if (e.target === e.currentTarget) setMenuOuvert(false);
+    if (e.target === e.currentTarget) setMenuOpen(false);
   }
 
-  function estActif(to) {
+  function isActive(to) {
     if (to === '/') return location.pathname === '/';
     return location.pathname.startsWith(to);
   }
@@ -40,65 +37,60 @@ function Navbar() {
   return (
     <>
       <nav className="navbar">
-        <Link to="/" className="navbar-brand">Site Bourse</Link>
+        <Link to="/" className="navbar-brand">Market Hub</Link>
 
-        {/* Liens desktop (masqués sur mobile) */}
         <div className="navbar-links">
-          {LIENS.map(({ to, label, className }) => (
+          {LINKS.map(({ to, label, className }) => (
             <Link
               key={to}
               to={to}
-              className={[className, estActif(to) ? 'active-nav' : ''].filter(Boolean).join(' ')}
+              className={[className, isActive(to) ? 'active-nav' : ''].filter(Boolean).join(' ')}
             >
               {label}
             </Link>
           ))}
         </div>
 
-        {/* Bouton hamburger mobile — 3 barres → ✕ via CSS */}
         <button
-          className={`navbar-hamburger ${menuOuvert ? 'open' : ''}`}
-          onClick={() => setMenuOuvert(v => !v)}
-          aria-label={menuOuvert ? 'Fermer le menu' : 'Ouvrir le menu'}
-          aria-expanded={menuOuvert}
+          className={`navbar-hamburger ${menuOpen ? 'open' : ''}`}
+          onClick={() => setMenuOpen(v => !v)}
+          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={menuOpen}
         >
           <span /><span /><span />
         </button>
       </nav>
 
-      {/* Overlay + Drawer mobile — EN DEHORS de <nav> pour couvrir tout l'écran */}
-      {menuOuvert && (
+      {menuOpen && (
         <div className="mobile-menu-overlay" onClick={handleOverlayClick}>
           <div className="mobile-menu-drawer">
-            {/* Header du drawer */}
             <div className="mobile-menu-header">
               <span className="mobile-menu-title">
-                <span className="navbar-brand-dot" /> Site Bourse
+                <span className="navbar-brand-dot" /> Market Hub
               </span>
               <button
                 className="mobile-menu-close"
-                onClick={() => setMenuOuvert(false)}
-                aria-label="Fermer"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Close"
               >
                 ✕
               </button>
             </div>
 
-            {/* Liste des liens */}
             <nav className="mobile-menu-nav">
-              {LIENS.map(({ to, label, icone, className }) => (
+              {LINKS.map(({ to, label, icone, className }) => (
                 <Link
                   key={to}
                   to={to}
                   className={[
                     'mobile-menu-link',
                     className,
-                    estActif(to) ? 'mobile-menu-link-active' : '',
+                    isActive(to) ? 'mobile-menu-link-active' : '',
                   ].filter(Boolean).join(' ')}
                 >
                   <span className="mobile-menu-icone">{icone}</span>
                   <span className="mobile-menu-label">{label}</span>
-                  {estActif(to) && <span className="mobile-menu-active-dot" />}
+                  {isActive(to) && <span className="mobile-menu-active-dot" />}
                 </Link>
               ))}
             </nav>

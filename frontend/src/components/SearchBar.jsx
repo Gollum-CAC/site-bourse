@@ -1,18 +1,17 @@
-// Composant barre de recherche — autocomplétion sans filtre marché (géré par les tabs)
+// Search bar with autocomplete
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { searchStock } from '../services/api';
 
 function SearchBar({ onSearch, marketFilter = '' }) {
-  const [query, setQuery]                   = useState('');
-  const [suggestions, setSuggestions]       = useState([]);
+  const [query, setQuery]                     = useState('');
+  const [suggestions, setSuggestions]         = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [loading, setLoading]               = useState(false);
-  const navigate    = useNavigate();
-  const timeoutRef  = useRef(null);
-  const wrapperRef  = useRef(null);
+  const [loading, setLoading]                 = useState(false);
+  const navigate   = useNavigate();
+  const timeoutRef = useRef(null);
+  const wrapperRef = useRef(null);
 
-  // Fermer les suggestions si clic en dehors
   useEffect(() => {
     const handler = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target))
@@ -22,7 +21,6 @@ function SearchBar({ onSearch, marketFilter = '' }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Autocomplétion avec debounce 300ms
   function handleInputChange(value) {
     setQuery(value);
     clearTimeout(timeoutRef.current);
@@ -77,11 +75,10 @@ function SearchBar({ onSearch, marketFilter = '' }) {
   return (
     <div className="search-wrapper" ref={wrapperRef}>
       <form className="search-bar" onSubmit={handleSubmit}>
-        {/* Pas de filtre marché ici — les tabs de la section Cours s'en chargent */}
         <div className="search-input-row">
           <input
             type="text"
-            placeholder="Rechercher une action — ex : LVMH, AAPL, MC.PA, Apple…"
+            placeholder="Search a stock — e.g. LVMH, AAPL, MC.PA, Apple…"
             value={query}
             onChange={(e) => handleInputChange(e.target.value)}
             onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
@@ -93,7 +90,6 @@ function SearchBar({ onSearch, marketFilter = '' }) {
         </div>
       </form>
 
-      {/* Suggestions */}
       {showSuggestions && suggestions.length > 0 && (
         <div className="search-suggestions">
           {suggestions.map((s, i) => (

@@ -1,12 +1,12 @@
-// Composant liste des actualités financières
+// Financial news list component
 function NewsList({ news }) {
   if (!news || !news.articles || news.articles.length === 0) {
-    return <p className="loading">Chargement des actualités...</p>;
+    return <p className="loading">Loading news...</p>;
   }
 
   return (
     <div className="news-section">
-      <h2>📰 Actualités financières</h2>
+      <h2>📰 Financial News</h2>
       <div className="news-grid">
         {news.articles.slice(0, 8).map((article, index) => (
           <a
@@ -22,7 +22,7 @@ function NewsList({ news }) {
             <div className="news-content">
               <h4>{article.title}</h4>
               <p className="news-source">
-                {article.source?.name} • {new Date(article.publishedAt).toLocaleDateString('fr-FR')}
+                {article.source?.name} • {new Date(article.publishedAt).toLocaleDateString('en-US')}
               </p>
             </div>
           </a>

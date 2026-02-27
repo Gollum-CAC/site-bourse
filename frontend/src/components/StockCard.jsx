@@ -1,4 +1,4 @@
-// Composant carte affichant le cours d'une action
+// Stock card component showing quote data
 function StockCard({ stock }) {
   if (!stock) return null;
 
@@ -19,11 +19,11 @@ function StockCard({ stock }) {
         </span>
       </div>
       <div className="stock-details">
-        <div><span>Ouverture:</span> {stock.open?.toFixed(2)} $</div>
-        <div><span>Plus haut:</span> {stock.dayHigh?.toFixed(2)} $</div>
-        <div><span>Plus bas:</span> {stock.dayLow?.toFixed(2)} $</div>
-        <div><span>Volume:</span> {stock.volume?.toLocaleString('fr-FR')}</div>
-        <div><span>Cap. boursière:</span> {(stock.marketCap / 1e9)?.toFixed(2)} Mds $</div>
+        <div><span>Open:</span> {stock.open?.toFixed(2)} $</div>
+        <div><span>High:</span> {stock.dayHigh?.toFixed(2)} $</div>
+        <div><span>Low:</span> {stock.dayLow?.toFixed(2)} $</div>
+        <div><span>Volume:</span> {stock.volume?.toLocaleString('en-US')}</div>
+        <div><span>Market Cap:</span> {(stock.marketCap / 1e9)?.toFixed(2)} B $</div>
       </div>
     </div>
   );
