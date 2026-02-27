@@ -1,7 +1,8 @@
 // Service yahoo-finance2 v3 — compatible Node.js 24
 // L'API v3 expose une fonction default via require()
 
-const yahooFinance = require('yahoo-finance2').default;
+const YahooFinance = require('yahoo-finance2').default;
+const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 // ============================================================
 // === QUOTE ===
