@@ -1,8 +1,7 @@
-// Service DB — Logique "DB d'abord, FMP en fallback"
-// Supprimé : getRatiosTTM / sauvegarderRatios (ratios-ttm = plan payant FMP)
+// Service DB — Logique "DB d'abord, Yahoo Finance en fallback"
 
 const pool = require('../config/database');
-const fmpService = require('./fmpService');
+const yahoo = require('./yahooService');
 
 const FRESHNESS = {
   quote:   6  * 60 * 60 * 1000,      // 6h (données EOD plan gratuit)
@@ -34,10 +33,9 @@ async function getQuote(symbol) {
     console.warn('[DB] Quote ' + symbol + ':', dbErr.message);
   }
 
-  const data = await fmpService.getQuote(symbol);
-  const quote = Array.isArray(data) ? data[0] : data;
+  const quote = await yahoo.getQuote(symbol);
   if (quote) await sauvegarderQuote(symbol, quote);
-  return data;
+  return quote ? [quote] : [];
 }
 
 async function getBatchQuotes(symbols) {
@@ -67,20 +65,17 @@ async function getBatchQuotes(symbols) {
     aRafraichir.push(...symbols);
   }
 
-  // Fallback API — appels individuels (plan gratuit, pas de batch multi-symboles)
-  // Limite à 3 symboles max pour ne pas consommer trop de quota utilisateur
-  const aFetch = aRafraichir.slice(0, 3);
-  for (const sym of aFetch) {
+  // Fallback Yahoo — batch (1 appel pour tous les symboles périmés)
+  if (aRafraichir.length > 0) {
     try {
-      const data = await fmpService.getQuote(sym);
-      const quote = Array.isArray(data) ? data[0] : data;
-      if (quote && quote.price) {
-        await sauvegarderQuote(sym, quote);
-        resultats[sym] = quote;
+      const quotes = await yahoo.getBatchQuotes(aRafraichir);
+      for (const quote of quotes) {
+        if (!quote.symbol || !quote.price) continue;
+        await sauvegarderQuote(quote.symbol, quote);
+        resultats[quote.symbol] = quote;
       }
     } catch (err) {
-      if (err.code !== 'QUOTA_DEPASSE')
-        console.warn('[DB] Quote fallback ' + sym + ':', err.message);
+      console.warn('[DB] Batch fallback Yahoo:', err.message);
     }
   }
 
@@ -176,10 +171,9 @@ async function getProfile(symbol) {
       return [formatProfileFromDB(rows[0])];
     }
   } catch {}
-  const data = await fmpService.getCompanyProfile(symbol);
-  const profile = Array.isArray(data) ? data[0] : data;
+  const profile = await yahoo.getCompanyProfile(symbol);
   if (profile) await sauvegarderProfile(symbol, profile);
-  return data;
+  return profile ? [profile] : [];
 }
 
 async function sauvegarderProfile(symbol, p) {

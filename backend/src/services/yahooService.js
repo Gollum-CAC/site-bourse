@@ -1,180 +1,207 @@
-// Service Yahoo Finance — Fallback gratuit pour les actions européennes
-// Utilise yahoo-finance2 v2 (ESM) via import() dynamique depuis CommonJS
+// Service yahoo-finance2 — remplace fmpService pour quotes/profils/dividendes
+// Pas de clé API, pas de limite de symboles, accès US + Europe
+// FMP reste uniquement pour getDividendCalendar (calendrier global)
 
-// Suffixes des marchés non-US gérés par Yahoo Finance
-const SUFFIXES_EU = [
-  '.PA', '.AS', '.BR', '.LS', '.IR', '.DE', '.F', '.L',
-  '.MI', '.MC', '.ST', '.CO', '.HE', '.OL', '.T', '.HK',
-  '.SS', '.SZ', '.KS', '.AX',
-];
+const yahooFinance = require('yahoo-finance2').default;
 
-// Cache du module Yahoo (chargé une seule fois au démarrage)
-let _yf = null;
-async function getYF() {
-  if (!_yf) {
-    const mod = await import('yahoo-finance2');
-    _yf = mod.default;
-  }
-  return _yf;
-}
+// ============================================================
+// === CONFIGURATION YAHOO ===
+// ============================================================
 
-/**
- * Vérifie si un symbole doit passer par Yahoo (non-US)
- */
-function estSymboleEU(symbol) {
-  return SUFFIXES_EU.some(suffix => symbol.toUpperCase().endsWith(suffix));
-}
+// Supprimer les logs de validation Yahoo (trop verbeux)
+yahooFinance.setGlobalConfig({
+  validation: { logErrors: false, logOptionsErrors: false },
+});
 
-/**
- * Quote via Yahoo Finance — format compatible FMP
- */
+// ============================================================
+// === QUOTE — prix en temps réel ===
+// ============================================================
+
 async function getQuote(symbol) {
   try {
-    const yf = await getYF();
-    const result = await yf.quoteSummary(symbol, {
-      modules: ['price', 'summaryDetail'],
-    });
-
-    const p = result?.price || {};
-    const s = result?.summaryDetail || {};
-
-    if (!p.regularMarketPrice) throw new Error('Pas de prix disponible');
-
-    return [{
-      symbol:            p.symbol || symbol,
-      name:              p.longName || p.shortName || symbol,
-      price:             p.regularMarketPrice || null,
-      open:              p.regularMarketOpen || null,
-      dayHigh:           p.regularMarketDayHigh || null,
-      dayLow:            p.regularMarketDayLow || null,
-      yearHigh:          s.fiftyTwoWeekHigh || null,
-      yearLow:           s.fiftyTwoWeekLow || null,
-      change:            p.regularMarketChange || null,
-      changesPercentage: p.regularMarketChangePercent || null,
-      changePercentage:  p.regularMarketChangePercent || null,
-      volume:            p.regularMarketVolume || null,
-      avgVolume:         p.averageDailyVolume3Month || null,
-      marketCap:         p.marketCap || null,
-      eps:               p.epsTrailingTwelveMonths || null,
-      pe:                p.trailingPE || null,
-      currency:          p.currency || 'EUR',
-      _source:           'yahoo',
-    }];
+    const quote = await yahooFinance.quote(symbol);
+    if (!quote) return null;
+    return normalizeQuote(quote);
   } catch (err) {
-    console.warn(`[Yahoo] ❌ Quote ${symbol}:`, err.message);
-    throw err;
+    throw new Error(`Yahoo quote ${symbol}: ${err.message}`);
   }
 }
 
-/**
- * Profil entreprise via Yahoo Finance — format compatible FMP
- */
-async function getProfile(symbol) {
+// Batch quotes : Yahoo supporte plusieurs symboles en 1 appel
+async function getBatchQuotes(symbols) {
+  if (!symbols || symbols.length === 0) return [];
   try {
-    const yf = await getYF();
-    const result = await yf.quoteSummary(symbol, {
-      modules: ['assetProfile', 'price'],
-    });
-
-    const profile = result?.assetProfile || {};
-    const price   = result?.price || {};
-
-    return [{
-      symbol,
-      companyName:       price.longName || price.shortName || symbol,
-      name:              price.longName || price.shortName || symbol,
-      exchange:          price.exchange || null,
-      currency:          price.currency || 'EUR',
-      country:           profile.country || null,
-      sector:            profile.sector || null,
-      industry:          profile.industry || null,
-      description:       profile.longBusinessSummary || null,
-      website:           profile.website || null,
-      fullTimeEmployees: profile.fullTimeEmployees || null,
-      city:              profile.city || null,
-      isEtf:             false,
-      isActivelyTrading: true,
-      _source:           'yahoo',
-    }];
+    // yahooFinance.quote accepte un tableau
+    const results = await yahooFinance.quote(symbols);
+    const list = Array.isArray(results) ? results : [results];
+    return list.filter(q => q && q.regularMarketPrice).map(normalizeQuote);
   } catch (err) {
-    console.warn(`[Yahoo] ❌ Profil ${symbol}:`, err.message);
-    throw err;
+    // Fallback : appels individuels si le batch échoue
+    const out = [];
+    for (const sym of symbols) {
+      try {
+        const q = await yahooFinance.quote(sym);
+        if (q && q.regularMarketPrice) out.push(normalizeQuote(q));
+      } catch {}
+    }
+    return out;
   }
 }
 
-/**
- * Ratios TTM via Yahoo Finance — format compatible FMP
- */
-async function getRatiosTTM(symbol) {
+// Normalise un objet Yahoo en format commun
+function normalizeQuote(q) {
+  return {
+    symbol:             q.symbol,
+    name:               q.longName || q.shortName || q.symbol,
+    price:              q.regularMarketPrice || 0,
+    open:               q.regularMarketOpen || null,
+    dayHigh:            q.regularMarketDayHigh || null,
+    dayLow:             q.regularMarketDayLow || null,
+    previousClose:      q.regularMarketPreviousClose || null,
+    yearHigh:           q.fiftyTwoWeekHigh || null,
+    yearLow:            q.fiftyTwoWeekLow || null,
+    change:             q.regularMarketChange || 0,
+    changesPercentage:  q.regularMarketChangePercent || 0,
+    volume:             q.regularMarketVolume || null,
+    avgVolume:          q.averageDailyVolume3Month || null,
+    marketCap:          q.marketCap || null,
+    priceAvg50:         q.fiftyDayAverage || null,
+    priceAvg200:        q.twoHundredDayAverage || null,
+    eps:                q.epsTrailingTwelveMonths || null,
+    pe:                 q.trailingPE || null,
+    sharesOutstanding:  q.sharesOutstanding || null,
+    currency:           q.currency || 'USD',
+    exchange:           q.fullExchangeName || q.exchange || null,
+    // Dividendes (disponibles dans quote)
+    dividendRate:       q.trailingAnnualDividendRate || null,
+    dividendYield:      q.trailingAnnualDividendYield
+                          ? Math.round(q.trailingAnnualDividendYield * 10000) / 100
+                          : null,
+    exDividendDate:     q.exDividendDate || null,
+    payoutRatio:        q.payoutRatio || null,
+  };
+}
+
+// ============================================================
+// === PROFIL ENTREPRISE ===
+// ============================================================
+
+async function getCompanyProfile(symbol) {
   try {
-    const yf = await getYF();
-    const result = await yf.quoteSummary(symbol, {
-      modules: ['defaultKeyStatistics', 'financialData', 'summaryDetail'],
+    const result = await yahooFinance.quoteSummary(symbol, {
+      modules: ['assetProfile', 'summaryDetail', 'defaultKeyStatistics'],
     });
 
-    const ks = result?.defaultKeyStatistics || {};
-    const fd = result?.financialData || {};
+    const p  = result?.assetProfile || {};
     const sd = result?.summaryDetail || {};
+    const ks = result?.defaultKeyStatistics || {};
 
-    return [{
-      peRatioTTM:               sd.trailingPE || null,
-      priceToBookRatioTTM:      ks.priceToBook || null,
-      pegRatioTTM:              ks.pegRatio || null,
-      dividendYieldTTM:         sd.dividendYield || null,
-      dividendYielPercentageTTM: sd.dividendYield ? sd.dividendYield * 100 : null,
-      payoutRatioTTM:           sd.payoutRatio || null,
-      returnOnEquityTTM:        fd.returnOnEquity || null,
-      returnOnAssetsTTM:        fd.returnOnAssets || null,
-      grossProfitMarginTTM:     fd.grossMargins || null,
-      operatingProfitMarginTTM: fd.operatingMargins || null,
-      netProfitMarginTTM:       fd.profitMargins || null,
-      currentRatioTTM:          fd.currentRatio || null,
-      quickRatioTTM:            fd.quickRatio || null,
-      debtEquityRatioTTM:       fd.debtToEquity ? fd.debtToEquity / 100 : null,
-      revenueGrowthTTM:         fd.revenueGrowth || null,
-      netIncomeGrowthTTM:       fd.earningsGrowth || null,
-      _source:                  'yahoo',
-    }];
+    return {
+      symbol,
+      companyName:        p.longBusinessSummary ? symbol : (p.country ? symbol : symbol),
+      name:               symbol,
+      description:        p.longBusinessSummary || null,
+      sector:             p.sector || null,
+      industry:           p.industry || null,
+      country:            p.country || null,
+      website:            p.website || null,
+      ceo:                p.companyOfficers?.[0]?.name || null,
+      employees:          p.fullTimeEmployees || null,
+      address:            p.address1 || null,
+      city:               p.city || null,
+      state:              p.state || null,
+      exchange:           null,
+      currency:           null,
+      ipoDate:            null,
+      isEtf:              false,
+      isActivelyTrading:  true,
+      // Stats supplémentaires
+      beta:               sd.beta || ks.beta || null,
+      dividendRate:       sd.dividendRate || null,
+      dividendYield:      sd.dividendYield
+                            ? Math.round(sd.dividendYield * 10000) / 100
+                            : null,
+      exDividendDate:     sd.exDividendDate || null,
+      payoutRatio:        sd.payoutRatio || null,
+      forwardPE:          sd.forwardPE || null,
+      priceToBook:        ks.priceToBook || null,
+      returnOnEquity:     ks.returnOnEquity || null,
+      profitMargins:      ks.profitMargins || null,
+    };
   } catch (err) {
-    console.warn(`[Yahoo] ❌ Ratios ${symbol}:`, err.message);
-    throw err;
+    throw new Error(`Yahoo profile ${symbol}: ${err.message}`);
   }
 }
 
-/**
- * Historique des prix via Yahoo Finance — format compatible FMP
- */
+// ============================================================
+// === DIVIDENDES HISTORIQUES ===
+// ============================================================
+
+async function getDividends(symbol) {
+  try {
+    const result = await yahooFinance.historical(symbol, {
+      period1: '2015-01-01',
+      events:  'dividends',
+    });
+    // Yahoo retourne un tableau d'objets { date, dividends }
+    return (result || []).map(d => ({
+      date:        d.date instanceof Date
+                     ? d.date.toISOString().split('T')[0]
+                     : String(d.date),
+      dividend:    d.dividends || 0,
+      adjDividend: d.dividends || 0,
+    })).filter(d => d.dividend > 0);
+  } catch (err) {
+    throw new Error(`Yahoo dividends ${symbol}: ${err.message}`);
+  }
+}
+
+// ============================================================
+// === HISTORIQUE DES PRIX ===
+// ============================================================
+
 async function getHistoricalPrice(symbol, from, to) {
   try {
-    const yf = await getYF();
-    const opts = {};
-    if (from) opts.period1 = from;
-    if (to)   opts.period2 = to;
-
-    const result = await yf.historical(symbol, opts);
-    if (!Array.isArray(result)) return { historical: [] };
-
-    const historical = result.map(d => ({
-      date:   d.date ? d.date.toISOString().split('T')[0] : null,
-      open:   d.open || null,
-      high:   d.high || null,
-      low:    d.low || null,
-      close:  d.close || null,
-      volume: d.volume || null,
-    })).filter(d => d.date);
-
-    return { historical };
+    const opts = { period1: from || '2020-01-01' };
+    if (to) opts.period2 = to;
+    const result = await yahooFinance.historical(symbol, opts);
+    return (result || []).map(d => ({
+      date:   d.date instanceof Date ? d.date.toISOString().split('T')[0] : String(d.date),
+      open:   d.open,
+      high:   d.high,
+      low:    d.low,
+      close:  d.close,
+      volume: d.volume,
+    }));
   } catch (err) {
-    console.warn(`[Yahoo] ❌ Historique ${symbol}:`, err.message);
-    throw err;
+    throw new Error(`Yahoo historical ${symbol}: ${err.message}`);
+  }
+}
+
+// ============================================================
+// === SEARCH ===
+// ============================================================
+
+async function searchStock(query) {
+  try {
+    const result = await yahooFinance.search(query, { quotesCount: 15 });
+    return (result?.quotes || []).map(q => ({
+      symbol:       q.symbol,
+      name:         q.longname || q.shortname || q.symbol,
+      exchange:     q.exchange || null,
+      type:         q.quoteType || 'EQUITY',
+    }));
+  } catch (err) {
+    throw new Error(`Yahoo search "${query}": ${err.message}`);
   }
 }
 
 module.exports = {
-  estSymboleEU,
   getQuote,
-  getProfile,
-  getRatiosTTM,
+  getBatchQuotes,
+  getCompanyProfile,
+  getDividends,
   getHistoricalPrice,
-  SUFFIXES_EU,
+  searchStock,
+  normalizeQuote,
 };

@@ -1,224 +1,203 @@
-// Crawler optimisé pour le plan GRATUIT FMP — 250 appels/jour
+// Crawler yahoo-finance2 — US + Europe, pas de limite de symboles
 //
-// ⚠️ CONTRAINTE FMP FREE : quote?symbol=A,B,C est PREMIUM.
-//    Seul quote?symbol=AAPL (1 symbole) est gratuit.
+// Stratégie :
+//   - Quotes : batch Yahoo (1 appel pour N symboles) toutes les 6h
+//   - Profils : 3 par cycle (données statiques, refresh 30j)
+//   - Dividendes : 3 par cycle (refresh 30j)
+//   - Scores : calcul pur DB (0 appel)
 //
-// Stratégie — cycle toutes les 30min :
-//   1. fetch_quotes   : 5 quotes individuels (5 appels), rotation sur 87 symboles
-//                       → couvre tout en 87/5 = 18 cycles = 9h
-//   2. fetch_profile  : 1 profil par cycle (1 appel)
-//   3. fetch_dividends: 1 dividende par cycle (1 appel)
-//   4. calculate_scores : 0 appel, calcul pur DB
-//
-// Budget 200/jour, cycle 30min → 48 cycles/jour
-// Quotes : 5 × 48 = 240 max → refresh complet possible chaque jour
+// Cycle : 30min
+// Pas de quota à gérer — Yahoo n'a pas de limite d'appels stricte
+// (prudence quand même : pause 1s entre appels individuels)
 
 const pool = require('./config/database');
-const fmpService = require('./services/fmpService');
+const yahoo = require('./services/yahooService');
 const dbService = require('./services/dbService');
-const { FMP_FREE_SYMBOLS, FMP_SYMBOLS_META } = require('./fmpSymbols');
+const { YAHOO_SYMBOLS, SYMBOLS_META } = require('./yahooSymbols');
 
 // === CONFIGURATION ===
 let CONFIG = {
-  crawlerBudget: 200,         // appels/jour pour le crawler
-  pauseMs: 2000,              // pause entre appels individuels
-  profileRefreshDays: 30,
+  pauseMs:             1000,   // 1s entre appels individuels
+  profileRefreshDays:  30,
   dividendRefreshDays: 30,
-  quoteRefreshHours: 8,       // considère quote périmé après 8h
-  quotesPerCycle: 5,          // quotes individuels par cycle
-  cycleIntervalMs: 1800000,   // 30 minutes
-  enabled: true,
+  quoteRefreshHours:   6,
+  profilesPerCycle:    3,      // profils par cycle
+  dividendsPerCycle:   3,      // dividendes par cycle
+  cycleIntervalMs:     1800000, // 30 minutes
+  enabled:             true,
 };
 
-// Rotation quotes : index du prochain symbole à updater
-let quoteRotationIndex = 0;
-let crawlerRunning = false;
+let crawlerRunning  = false;
 let crawlerInterval = null;
-let dailyCallCount = 0;
-let lastResetDate = new Date().toDateString();
 
-// === COMPTEUR D'APPELS ===
-function trackCall() {
-  const today = new Date().toDateString();
-  if (today !== lastResetDate) {
-    dailyCallCount = 0;
-    lastResetDate = today;
-    console.log('[Crawler] 🔄 Reset compteur — nouveau jour');
-  }
-  dailyCallCount++;
+function pause(ms = CONFIG.pauseMs) {
+  return new Promise(r => setTimeout(r, ms));
 }
-
-function canMakeCall(n = 1) {
-  const today = new Date().toDateString();
-  if (today !== lastResetDate) { dailyCallCount = 0; lastResetDate = today; }
-  return dailyCallCount + n <= CONFIG.crawlerBudget && CONFIG.enabled;
-}
-
-function pause() { return new Promise(r => setTimeout(r, CONFIG.pauseMs)); }
 
 // ============================================================
 // === TÂCHE 0 : Init symboles (0 appel API) ===
 // ============================================================
 async function initSymbols() {
-  console.log('[Crawler] 📋 Initialisation des symboles...');
+  console.log(`[Crawler] 📋 Init ${YAHOO_SYMBOLS.length} symboles...`);
   let inseres = 0;
-  for (const symbol of FMP_FREE_SYMBOLS) {
-    const meta = FMP_SYMBOLS_META[symbol] || {};
+  for (const symbol of YAHOO_SYMBOLS) {
+    const meta = SYMBOLS_META[symbol] || {};
+    const currency = meta.currency || (symbol.endsWith('.PA') || symbol.endsWith('.DE') || symbol.endsWith('.AS') ? 'EUR' : symbol.endsWith('.L') ? 'GBp' : symbol.endsWith('.SW') ? 'CHF' : 'USD');
+    const country  = meta.country  || (symbol.endsWith('.PA') ? 'FR' : symbol.endsWith('.DE') ? 'DE' : symbol.endsWith('.AS') ? 'NL' : symbol.endsWith('.L') ? 'GB' : symbol.endsWith('.SW') ? 'CH' : 'US');
     try {
       await pool.query(`
         INSERT INTO stocks (symbol, name, exchange, country, sector, currency, is_pea_eligible)
-        VALUES ($1, $2, 'NASDAQ', $3, $4, $5, FALSE)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         ON CONFLICT (symbol) DO UPDATE SET
           name=COALESCE(EXCLUDED.name, stocks.name),
           sector=COALESCE(EXCLUDED.sector, stocks.sector),
           country=COALESCE(EXCLUDED.country, stocks.country),
           currency=COALESCE(EXCLUDED.currency, stocks.currency),
           updated_at=NOW()
-      `, [symbol, meta.name || symbol, meta.country || 'US', meta.sector || null, meta.currency || 'USD']);
+      `, [
+        symbol,
+        meta.name || symbol,
+        meta.exchange || null,
+        country,
+        meta.sector || null,
+        currency,
+        // PEA éligible = actions françaises + quelques européennes
+        country === 'FR' || (country !== 'US' && country !== 'GB' && country !== 'CH'),
+      ]);
       inseres++;
     } catch (err) {
       console.warn(`[Crawler] ⚠️ Insert ${symbol}:`, err.message);
     }
   }
-  await updateCrawlerState('init_symbols', 'idle', null, inseres, FMP_FREE_SYMBOLS.length);
-  console.log(`[Crawler] ✅ ${inseres} symboles initialisés (0 appel API)`);
+  await updateCrawlerState('init_symbols', 'idle', null, inseres, YAHOO_SYMBOLS.length);
+  console.log(`[Crawler] ✅ ${inseres} symboles initialisés`);
   return inseres;
 }
 
 // ============================================================
-// === TÂCHE 1 : Quotes individuels — 5 par cycle ===
-// Plan gratuit : 1 symbole par appel uniquement
-// Rotation sur FMP_FREE_SYMBOLS, reprend là où on s'est arrêté
+// === TÂCHE 1 : Batch quotes — 1 seul appel Yahoo ===
+// Yahoo supporte un tableau de symboles en 1 requête
 // ============================================================
-async function fetchNextQuotes() {
-  const n = CONFIG.quotesPerCycle;
-  if (!canMakeCall(n)) {
-    console.log(`[Crawler] 🚫 Budget insuffisant — skip quotes (${dailyCallCount}/${CONFIG.crawlerBudget})`);
+async function batchQuotes() {
+  console.log(`[Crawler] 📈 Batch quotes Yahoo — ${YAHOO_SYMBOLS.length} symboles...`);
+  try {
+    const quotes = await yahoo.getBatchQuotes(YAHOO_SYMBOLS);
+    let sauvegardes = 0;
+    for (const q of quotes) {
+      if (!q.symbol || !q.price) continue;
+      await dbService.sauvegarderQuote(q.symbol, q);
+      // Mettre à jour le dividend yield dans stocks si disponible
+      if (q.dividendYield != null) {
+        await pool.query(
+          'UPDATE stocks SET current_yield=$2, updated_at=NOW() WHERE symbol=$1',
+          [q.symbol, q.dividendYield]
+        ).catch(() => {});
+      }
+      sauvegardes++;
+    }
+    await updateCrawlerState('batch_quotes', 'idle', null, sauvegardes, YAHOO_SYMBOLS.length);
+    console.log(`[Crawler] ✅ Batch quotes : ${sauvegardes}/${YAHOO_SYMBOLS.length} mis à jour`);
+    return sauvegardes;
+  } catch (err) {
+    console.error('[Crawler] ❌ Batch quotes Yahoo:', err.message);
     return 0;
   }
-
-  // Sélectionner les N prochains symboles dans la rotation
-  const total = FMP_FREE_SYMBOLS.length;
-  const batch = [];
-  for (let i = 0; i < n; i++) {
-    batch.push(FMP_FREE_SYMBOLS[quoteRotationIndex % total]);
-    quoteRotationIndex++;
-  }
-
-  console.log(`[Crawler] 📈 Quotes [${batch.join(', ')}] (${n} appels individuels — index ${quoteRotationIndex - n} → ${quoteRotationIndex - 1})`);
-
-  let sauvegardes = 0;
-  for (const symbol of batch) {
-    if (!canMakeCall(1)) break;
-    try {
-      trackCall();
-      const data = await fmpService.getQuote(symbol);
-      const quote = Array.isArray(data) ? data[0] : data;
-      if (quote && quote.price) {
-        await dbService.sauvegarderQuote(symbol, quote);
-        sauvegardes++;
-      }
-    } catch (err) {
-      if (err.code === 'QUOTA_DEPASSE') { CONFIG.enabled = false; break; }
-      console.warn(`[Crawler] ⚠️ Quote ${symbol}:`, err.message);
-    }
-    await pause();
-  }
-
-  await updateCrawlerState('fetch_quotes', 'idle', batch[batch.length - 1], sauvegardes, total);
-  console.log(`[Crawler] ✅ ${sauvegardes}/${n} quotes sauvegardés | total appels : ${dailyCallCount}/${CONFIG.crawlerBudget}`);
-  return sauvegardes;
 }
 
 // ============================================================
-// === TÂCHE 2 : Profils — 1 par cycle ===
+// === TÂCHE 2 : Profils — N par cycle ===
 // ============================================================
-async function fetchNextProfile() {
-  if (!canMakeCall(1)) return 0;
-
+async function fetchNextProfiles() {
   const { rows } = await pool.query(`
     SELECT s.symbol FROM stocks s
     LEFT JOIN stock_profiles p ON p.symbol = s.symbol
     WHERE s.symbol = ANY($1::text[])
       AND (p.symbol IS NULL OR p.updated_at < NOW() - INTERVAL '${CONFIG.profileRefreshDays} days')
     ORDER BY p.updated_at ASC NULLS FIRST
-    LIMIT 1
-  `, [FMP_FREE_SYMBOLS]);
+    LIMIT $2
+  `, [YAHOO_SYMBOLS, CONFIG.profilesPerCycle]);
 
   if (rows.length === 0) {
     console.log('[Crawler] ✅ Tous les profils sont à jour');
     return 0;
   }
 
-  const symbol = rows[0].symbol;
-  try {
-    trackCall();
-    const data = await fmpService.getCompanyProfile(symbol);
-    const profile = Array.isArray(data) ? data[0] : data;
-    if (profile) {
-      await dbService.sauvegarderProfile(symbol, profile);
-      console.log(`[Crawler] 🏢 Profil ${symbol} sauvegardé`);
+  let done = 0;
+  for (const { symbol } of rows) {
+    try {
+      const profile = await yahoo.getCompanyProfile(symbol);
+      if (profile) {
+        await dbService.sauvegarderProfile(symbol, profile);
+        // Stocker les stats supplémentaires dans stock_quotes si dispo
+        if (profile.dividendYield != null || profile.beta != null) {
+          await pool.query(`
+            UPDATE stock_quotes SET
+              dividend_yield = COALESCE($2, dividend_yield),
+              beta           = COALESCE($3, beta),
+              updated_at     = NOW()
+            WHERE symbol = $1
+          `, [symbol, profile.dividendYield, profile.beta]).catch(() => {});
+        }
+        console.log(`[Crawler] 🏢 Profil ${symbol} sauvegardé`);
+        done++;
+      }
+    } catch (err) {
+      console.warn(`[Crawler] ⚠️ Profil ${symbol}:`, err.message);
     }
     await pause();
-    await updateCrawlerState('fetch_profiles', 'idle', symbol, 1, 1);
-    return 1;
-  } catch (err) {
-    if (err.code === 'QUOTA_DEPASSE') CONFIG.enabled = false;
-    else console.error(`[Crawler] ❌ Profil ${symbol}:`, err.message);
-    return 0;
   }
+  await updateCrawlerState('fetch_profiles', 'idle', rows[rows.length-1]?.symbol, done, YAHOO_SYMBOLS.length);
+  return done;
 }
 
 // ============================================================
-// === TÂCHE 3 : Dividendes — 1 par cycle ===
+// === TÂCHE 3 : Dividendes — N par cycle ===
 // ============================================================
 async function fetchNextDividends() {
-  if (!canMakeCall(1)) return 0;
-
   const { rows } = await pool.query(`
     SELECT symbol FROM stocks
     WHERE symbol = ANY($1::text[])
       AND (last_dividend_update IS NULL OR last_dividend_update < NOW() - INTERVAL '${CONFIG.dividendRefreshDays} days')
     ORDER BY last_dividend_update ASC NULLS FIRST
-    LIMIT 1
-  `, [FMP_FREE_SYMBOLS]);
+    LIMIT $2
+  `, [YAHOO_SYMBOLS, CONFIG.dividendsPerCycle]);
 
   if (rows.length === 0) {
     console.log('[Crawler] ✅ Tous les dividendes sont à jour');
     return 0;
   }
 
-  const symbol = rows[0].symbol;
-  try {
-    trackCall();
-    const divData = await fmpService.getDividends(symbol);
-    const dividends = Array.isArray(divData) ? divData : (divData?.historical || []);
-
-    let inseres = 0;
-    for (const div of dividends) {
-      const exDate = div.date || div.exDate || null;
-      const amount = parseFloat(div.dividend || div.adjDividend || 0);
-      if (!exDate || amount <= 0) continue;
-      try {
-        await pool.query(`
-          INSERT INTO dividends (symbol, ex_date, payment_date, record_date, declaration_date, amount, currency)
-          VALUES ($1,$2,$3,$4,$5,$6,'USD')
-          ON CONFLICT (symbol, ex_date, amount) DO NOTHING
-        `, [symbol, exDate, div.paymentDate || null, div.recordDate || null, div.declarationDate || null, amount]);
-        inseres++;
-      } catch {}
+  let done = 0;
+  for (const { symbol } of rows) {
+    try {
+      const dividends = await yahoo.getDividends(symbol);
+      let inseres = 0;
+      for (const div of dividends) {
+        const amount = parseFloat(div.dividend || div.adjDividend || 0);
+        if (!div.date || amount <= 0) continue;
+        try {
+          await pool.query(`
+            INSERT INTO dividends (symbol, ex_date, amount, currency)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (symbol, ex_date, amount) DO NOTHING
+          `, [symbol, div.date, amount, 'USD']);
+          inseres++;
+        } catch {}
+      }
+      await pool.query(
+        'UPDATE stocks SET last_dividend_update=NOW(), updated_at=NOW() WHERE symbol=$1',
+        [symbol]
+      );
+      console.log(`[Crawler] 💰 Dividendes ${symbol} : ${inseres} enregistrements`);
+      done++;
+    } catch (err) {
+      console.warn(`[Crawler] ⚠️ Dividendes ${symbol}:`, err.message);
+      await pool.query('UPDATE stocks SET last_dividend_update=NOW() WHERE symbol=$1', [symbol]).catch(() => {});
     }
-    await pool.query('UPDATE stocks SET last_dividend_update=NOW(), updated_at=NOW() WHERE symbol=$1', [symbol]);
-    console.log(`[Crawler] 💰 Dividendes ${symbol} : ${inseres} enregistrements`);
     await pause();
-    await updateCrawlerState('fetch_dividends', 'idle', symbol, 1, 1);
-    return 1;
-  } catch (err) {
-    if (err.code === 'QUOTA_DEPASSE') CONFIG.enabled = false;
-    else console.error(`[Crawler] ❌ Dividendes ${symbol}:`, err.message);
-    await pool.query('UPDATE stocks SET last_dividend_update=NOW() WHERE symbol=$1', [symbol]).catch(() => {});
-    return 0;
   }
+  await updateCrawlerState('fetch_dividends', 'idle', rows[rows.length-1]?.symbol, done, YAHOO_SYMBOLS.length);
+  return done;
 }
 
 // ============================================================
@@ -228,7 +207,7 @@ async function calculateScores() {
   const currentYear = new Date().getFullYear();
   const { rows: stocks } = await pool.query(
     'SELECT symbol, price FROM stocks WHERE symbol = ANY($1::text[]) AND price > 0',
-    [FMP_FREE_SYMBOLS]
+    [YAHOO_SYMBOLS]
   );
   let calcules = 0;
 
@@ -240,12 +219,12 @@ async function calculateScores() {
     `, [stock.symbol, `${currentYear - 6}-01-01`]);
 
     if (divRows.length === 0) continue;
-    const latestDiv  = parseFloat(divRows[0]?.total) || 0;
+    const latestDiv   = parseFloat(divRows[0]?.total) || 0;
     const currentYield = (latestDiv / parseFloat(stock.price)) * 100;
     if (currentYield < 0.5) continue;
 
-    const avgDiv   = divRows.reduce((s, r) => s + parseFloat(r.total), 0) / divRows.length;
-    const avgYield = (avgDiv / parseFloat(stock.price)) * 100;
+    const avgDiv    = divRows.reduce((s, r) => s + parseFloat(r.total), 0) / divRows.length;
+    const avgYield  = (avgDiv / parseFloat(stock.price)) * 100;
     const yearsWithDiv = Math.min(divRows.length, 5);
     const regularity   = Math.round((yearsWithDiv / 5) * 100);
 
@@ -265,9 +244,9 @@ async function calculateScores() {
 
     const trend   = growth > 10 ? 'growing' : growth < -10 ? 'declining' : 'stable';
     const history = divRows.slice(0, 5).map(r => ({
-      year: r.year,
+      year:     r.year,
       dividend: Math.round(parseFloat(r.total) * 1000) / 1000,
-      yield: Math.round((parseFloat(r.total) / parseFloat(stock.price)) * 10000) / 100,
+      yield:    Math.round((parseFloat(r.total) / parseFloat(stock.price)) * 10000) / 100,
     }));
 
     await pool.query(`
@@ -287,13 +266,12 @@ async function calculateScores() {
   }
 
   await updateCrawlerState('calculate_scores', 'idle', null, calcules, stocks.length);
-  console.log(`[Crawler] 🧮 Scores : ${calcules} actions calculées (0 appel API)`);
+  console.log(`[Crawler] 🧮 Scores : ${calcules} actions calculées`);
   return calcules;
 }
 
 // ============================================================
 // === BOUCLE PRINCIPALE ===
-// Priorité : quotes périmés > profils manquants > dividendes > scores
 // ============================================================
 let rotation = 0;
 
@@ -302,7 +280,7 @@ async function runCrawlerCycle() {
   crawlerRunning = true;
 
   try {
-    // Vérifier si les symboles sont en base
+    // Init si DB vide
     const { rows } = await pool.query('SELECT COUNT(*) as count FROM stocks');
     if (parseInt(rows[0].count) === 0) {
       await initSymbols();
@@ -310,31 +288,31 @@ async function runCrawlerCycle() {
       return;
     }
 
-    // Compter les quotes périmés
+    // Vérifier si quotes périmés
     const { rows: perimesRows } = await pool.query(`
       SELECT COUNT(*) as count FROM stocks s
       LEFT JOIN stock_quotes q ON q.symbol = s.symbol
       WHERE s.symbol = ANY($1::text[])
         AND (q.symbol IS NULL OR q.updated_at < NOW() - INTERVAL '${CONFIG.quoteRefreshHours} hours')
-    `, [FMP_FREE_SYMBOLS]);
+    `, [YAHOO_SYMBOLS]);
     const quotesPerimes = parseInt(perimesRows[0].count);
 
-    console.log(`[Crawler] 🔄 Cycle | quotes périmés: ${quotesPerimes} | appels: ${dailyCallCount}/${CONFIG.crawlerBudget}`);
+    console.log(`[Crawler] 🔄 Cycle | quotes périmés: ${quotesPerimes}/${YAHOO_SYMBOLS.length}`);
 
-    // Toujours commencer par des quotes si nécessaire
-    if (quotesPerimes > 0 && canMakeCall(CONFIG.quotesPerCycle)) {
-      await fetchNextQuotes();
+    // Quotes en priorité si périmés
+    if (quotesPerimes > 0) {
+      await batchQuotes();
     }
 
-    // Ensuite profil ou dividende en rotation
+    // Rotation profils / dividendes / scores
     rotation++;
-    if (rotation % 3 === 0) {
+    if (rotation % 4 === 0) {
       await calculateScores();
-    } else if (rotation % 2 === 0) {
-      const updated = await fetchNextDividends();
-      if (updated > 0) await calculateScores();
+    } else if (rotation % 3 === 0) {
+      const n = await fetchNextDividends();
+      if (n > 0) await calculateScores();
     } else {
-      await fetchNextProfile();
+      await fetchNextProfiles();
     }
 
   } catch (err) {
@@ -362,8 +340,11 @@ async function updateCrawlerState(taskName, status, lastSymbol, processed, total
 
 function startCrawler(config = {}) {
   Object.assign(CONFIG, config);
-  console.log(`[Crawler] 🕷️ Démarrage — budget ${CONFIG.crawlerBudget}/jour | cycle ${CONFIG.cycleIntervalMs / 60000}min`);
-  console.log(`[Crawler] 📦 ${FMP_FREE_SYMBOLS.length} symboles | ${CONFIG.quotesPerCycle} quotes/cycle | 1 symbole/appel (plan gratuit)`);
+  const total = YAHOO_SYMBOLS.length;
+  const us    = YAHOO_SYMBOLS.filter(s => !s.includes('.')).length;
+  const eu    = total - us;
+  console.log(`[Crawler] 🕷️ Démarrage Yahoo Finance — cycle ${CONFIG.cycleIntervalMs / 60000}min`);
+  console.log(`[Crawler] 📦 ${total} symboles (${us} US + ${eu} Europe) | sans quota API`);
   setTimeout(runCrawlerCycle, 3000);
   crawlerInterval = setInterval(runCrawlerCycle, CONFIG.cycleIntervalMs);
 }
@@ -375,12 +356,20 @@ function stopCrawler() {
 }
 
 function getCrawlerConfig() {
-  return { ...CONFIG, dailyCallCount, canMakeMoreCalls: canMakeCall(), totalSymbols: FMP_FREE_SYMBOLS.length };
+  const total = YAHOO_SYMBOLS.length;
+  return {
+    ...CONFIG,
+    totalSymbols: total,
+    usSymbols:    YAHOO_SYMBOLS.filter(s => !s.includes('.')).length,
+    euSymbols:    YAHOO_SYMBOLS.filter(s => s.includes('.')).length,
+    dailyCallCount: 0, // Yahoo : pas de compteur
+    crawlerBudget:  'illimité',
+  };
 }
 
 function setCrawlerConfig(cfg) { Object.assign(CONFIG, cfg); }
 
 module.exports = {
   startCrawler, stopCrawler, getCrawlerConfig, setCrawlerConfig,
-  initSymbols, fetchNextQuotes, fetchNextProfile, fetchNextDividends, calculateScores,
+  initSymbols, batchQuotes, fetchNextProfiles, fetchNextDividends, calculateScores,
 };
