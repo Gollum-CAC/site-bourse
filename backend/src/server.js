@@ -1,4 +1,4 @@
-// Serveur principal Express
+// Serveur principal Express — Plan GRATUIT FMP
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config({ path: '../.env' });
@@ -6,162 +6,121 @@ require('dotenv').config({ path: '../.env' });
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middlewares
 app.use(cors());
 app.use(express.json());
 
-// Import des routes
-const actionsRoutes = require('./routes/actions');
-const cryptosRoutes = require('./routes/cryptos');
-const newsRoutes = require('./routes/news');
+// Routes actives
+const actionsRoutes        = require('./routes/actions');
+const cryptosRoutes        = require('./routes/cryptos');
+const newsRoutes           = require('./routes/news');
 const superDividendesRoutes = require('./routes/superDividendes');
-const screenerRoutes = require('./routes/screener');
+const screenerRoutes       = require('./routes/screener');
 
-// Enregistrement des routes
-app.use('/api/actions', actionsRoutes);
-app.use('/api/cryptos', cryptosRoutes);
-app.use('/api/news', newsRoutes);
+app.use('/api/actions',    actionsRoutes);
+app.use('/api/cryptos',    cryptosRoutes);
+app.use('/api/news',       newsRoutes);
 app.use('/api/dividendes', superDividendesRoutes);
-app.use('/api/screener', screenerRoutes);
+app.use('/api/screener',   screenerRoutes);
 
-// Route pour injecter/rafraîchir les symboles manuellement
-app.post('/api/seeds/injecter', async (req, res) => {
-  try {
-    const { injecterSymboles } = require('./seeds');
-    const result = await injecterSymboles();
-    res.json({ success: true, ...result });
-  } catch (e) {
-    res.status(500).json({ erreur: e.message });
-  }
-});
-
-// Route statut DB détaillée — liste des actions chargées
+// Statut DB
 app.get('/api/db-status', async (req, res) => {
   try {
     const pool = require('./config/database');
 
-    // Compteurs globaux
-    const [stocksRes, quotesRes, quotesFraisRes, profilesRes, ratiosRes] = await Promise.all([
+    const [stocksRes, quotesRes, profilesRes, divsRes, analysisRes, quotesOkRes] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM stocks'),
       pool.query('SELECT COUNT(*) FROM stock_quotes'),
-      pool.query(`SELECT COUNT(*) FROM stock_quotes WHERE updated_at > NOW() - INTERVAL '1 hour'`),
       pool.query('SELECT COUNT(*) FROM stock_profiles'),
-      pool.query('SELECT COUNT(*) FROM stock_ratios'),
+      pool.query('SELECT COUNT(DISTINCT symbol) FROM dividends'),
+      pool.query('SELECT COUNT(*) FROM dividend_analysis'),
+      pool.query(`SELECT COUNT(*) FROM stock_quotes WHERE updated_at > NOW() - INTERVAL '6 hours'`),
     ]);
 
-    const totalStocks    = parseInt(stocksRes.rows[0].count);
-    const totalQuotes    = parseInt(quotesRes.rows[0].count);
-    const quotesFrais    = parseInt(quotesFraisRes.rows[0].count);
-    const totalProfiles  = parseInt(profilesRes.rows[0].count);
-    const totalRatios    = parseInt(ratiosRes.rows[0].count);
-
-    // Liste des actions avec leur état d'enrichissement
     const { rows: liste } = await pool.query(`
       SELECT
-        s.symbol,
-        s.name,
-        s.market_cap,
-        s.updated_at AS stock_updated,
-        q.price,
-        q.change_pct,
-        q.updated_at AS quote_updated,
+        s.symbol, s.name, s.sector, s.country,
+        q.price, q.change_pct, q.market_cap, q.updated_at AS quote_updated,
         CASE WHEN p.symbol IS NOT NULL THEN true ELSE false END AS has_profile,
-        p.sector,
-        p.country,
-        CASE WHEN r.symbol IS NOT NULL THEN true ELSE false END AS has_ratios,
-        CASE WHEN d.symbol IS NOT NULL THEN true ELSE false END AS has_dividends
+        CASE WHEN d.cnt > 0 THEN true ELSE false END AS has_dividends,
+        da.current_yield, da.composite_score
       FROM stocks s
-      LEFT JOIN stock_quotes  q ON q.symbol = s.symbol
+      LEFT JOIN stock_quotes q ON q.symbol = s.symbol
       LEFT JOIN stock_profiles p ON p.symbol = s.symbol
-      LEFT JOIN stock_ratios  r ON r.symbol = s.symbol
-      LEFT JOIN (
-        SELECT DISTINCT symbol FROM dividends
-      ) d ON d.symbol = s.symbol
-      ORDER BY s.market_cap DESC NULLS LAST, s.symbol ASC
-      LIMIT 500
+      LEFT JOIN (SELECT symbol, COUNT(*) as cnt FROM dividends GROUP BY symbol) d ON d.symbol = s.symbol
+      LEFT JOIN dividend_analysis da ON da.symbol = s.symbol
+      ORDER BY q.market_cap DESC NULLS LAST
     `);
 
-    // État du crawler
-    let crawlerState = [];
-    try {
-      const cs = await pool.query('SELECT * FROM crawler_state ORDER BY tache');
-      crawlerState = cs.rows;
-    } catch {}
+    const { rows: crawlerRows } = await pool.query('SELECT * FROM crawler_state ORDER BY task_name').catch(() => ({ rows: [] }));
+
+    const { FMP_FREE_SYMBOLS } = require('./fmpSymbols');
+    const { getCrawlerConfig } = require('./crawler');
 
     res.json({
-      compteurs: { totalStocks, totalQuotes, quotesFrais, totalProfiles, totalRatios },
+      compteurs: {
+        totalStocks:    parseInt(stocksRes.rows[0].count),
+        totalQuotes:    parseInt(quotesRes.rows[0].count),
+        totalProfiles:  parseInt(profilesRes.rows[0].count),
+        totalDividends: parseInt(divsRes.rows[0].count),
+        totalAnalyzed:  parseInt(analysisRes.rows[0].count),
+        quotesFrais:    parseInt(quotesOkRes.rows[0].count),
+        symbolsTotal:   FMP_FREE_SYMBOLS.length,
+      },
+      remplissage: {
+        quotes:   `${parseInt(quotesRes.rows[0].count)}/${FMP_FREE_SYMBOLS.length}`,
+        profiles: `${parseInt(profilesRes.rows[0].count)}/${FMP_FREE_SYMBOLS.length}`,
+        dividends: `${parseInt(divsRes.rows[0].count)}/${FMP_FREE_SYMBOLS.length}`,
+      },
       liste,
-      crawlerState,
+      crawlerState: crawlerRows,
+      crawlerConfig: getCrawlerConfig(),
       generatedAt: new Date().toISOString(),
     });
   } catch (e) {
-    console.error('[db-status]', e.message);
     res.status(500).json({ erreur: e.message });
   }
 });
 
-// Route de test / santé
+// Santé / Health
 app.get('/api/health', async (req, res) => {
-  const cacheStats = require('./services/cacheService').stats();
   const { getQuotaInfo } = require('./services/fmpService');
   let crawlerStats = null;
   let dbStats = null;
-  try {
-    const { getCrawlerConfig } = require('./crawler');
-    crawlerStats = getCrawlerConfig();
-  } catch (e) {}
-  try {
-    const { getStatsDB } = require('./services/dbService');
-    dbStats = await getStatsDB();
-  } catch (e) {}
+  try { crawlerStats = require('./crawler').getCrawlerConfig(); } catch {}
+  try { dbStats = await require('./services/dbService').getStatsDB(); } catch {}
   res.json({
     status: 'ok',
-    message: 'Site Bourse API fonctionne !',
-    cache: cacheStats,
     crawler: crawlerStats,
     db: dbStats,
     quota: getQuotaInfo(),
   });
 });
 
-// Route quota FMP — renvoie l'état du quota journalier
+// Quota FMP
 app.get('/api/quota', (req, res) => {
-  const { getQuotaInfo } = require('./services/fmpService');
-  res.json(getQuotaInfo());
+  res.json(require('./services/fmpService').getQuotaInfo());
 });
 
-// Démarrage du serveur
+// Démarrage
 app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
-  console.log(`📊 API Actions : http://localhost:${PORT}/api/actions`);
-  console.log(`🪙 API Cryptos : http://localhost:${PORT}/api/cryptos`);
-  console.log(`📰 API News   : http://localhost:${PORT}/api/news`);
-  console.log(`💎 Super Div  : http://localhost:${PORT}/api/dividendes/super`);
+  console.log(`🚀 Serveur sur http://localhost:${PORT}`);
+  console.log(`📦 Plan FMP GRATUIT — 250 appels/jour, 87 symboles US`);
 
-  // Initialiser la base de données
   const { initDatabase } = require('./initDb');
   const dbReady = await initDatabase();
 
-  // Injecter les symboles connus (CAC40, S&P500, DAX, FTSE100, etc.)
-  if (dbReady) {
-    const { injecterSymboles } = require('./seeds');
-    await injecterSymboles();
-  }
-
-  // Démarrer le crawler si la DB est prête
   if (dbReady) {
     const crawlerRef = require('./services/crawlerRef');
     const crawlerModule = require('./crawler');
-    crawlerRef.setCrawlerRef(crawlerModule); // lien pour que fmpService puisse stopper le crawler
-    const { startCrawler } = crawlerModule;
-    startCrawler({
-      dailyBudget: 250,           // Plan FMP Gratuit : 250 appels/jour
-      reservedForUser: 50,        // 50 réservés pour la navigation utilisateur
-      crawlerBudget: 200,         // 200 appels/jour pour enrichir la DB
-      pauseBetweenRequests: 3000, // 3s entre appels (prudent)
-      batchSize: 3,               // 3 actions par cycle
-      cycleInterval: 3600000,     // Cycle toutes les heures (200 appels / 24h = 8/h max)
+    crawlerRef.setCrawlerRef(crawlerModule);
+
+    crawlerModule.startCrawler({
+      crawlerBudget:     200,      // 200 appels/jour pour le crawler
+      pauseMs:           4000,     // 4s entre appels (prudent)
+      profileRefreshDays: 30,
       dividendRefreshDays: 30,
+      quoteRefreshHours:  6,       // EOD = refresh toutes les 6h
+      cycleIntervalMs:   3600000,  // Cycle horaire
     });
   }
 });
