@@ -87,8 +87,15 @@ async function getBatchQuotes(symbols) {
   return symbols.map(sym => resultats[sym]).filter(Boolean);
 }
 
+// Arrondit une valeur en entier (market_cap, volume, shares — stockés en BIGINT)
+function toBigInt(v) {
+  if (v == null || isNaN(Number(v))) return null;
+  return Math.round(Number(v));
+}
+
 async function sauvegarderQuote(symbol, q) {
   try {
+    const marketCap = toBigInt(q.marketCap);
     await pool.query(`
       INSERT INTO stocks (symbol, price, market_cap, updated_at)
       VALUES ($1, $2, $3, NOW())
@@ -97,7 +104,7 @@ async function sauvegarderQuote(symbol, q) {
         market_cap = EXCLUDED.market_cap,
         last_quote_update = NOW(),
         updated_at = NOW()
-    `, [symbol, q.price || null, q.marketCap || null]);
+    `, [symbol, q.price || null, marketCap]);
 
     await pool.query(`
       INSERT INTO stock_quotes (
@@ -113,14 +120,22 @@ async function sauvegarderQuote(symbol, q) {
         shares_outstanding=$17, updated_at=NOW()
     `, [
       symbol,
-      q.price || null, q.open || null,
-      q.dayHigh || null, q.dayLow || null,
-      q.yearHigh || null, q.yearLow || null,
-      q.change || null, q.changesPercentage ?? q.changePercentage ?? null,
-      q.volume || null, q.avgVolume || null,
-      q.marketCap || null, q.priceAvg50 || null,
-      q.priceAvg200 || null, q.eps || null,
-      q.pe || null, q.sharesOutstanding || null,
+      q.price   || null,
+      q.open    || null,
+      q.dayHigh || null,
+      q.dayLow  || null,
+      q.yearHigh || null,
+      q.yearLow  || null,
+      q.change  || null,
+      q.changesPercentage ?? q.changePercentage ?? null,
+      toBigInt(q.volume),
+      toBigInt(q.avgVolume),
+      marketCap,
+      q.priceAvg50  || null,
+      q.priceAvg200 || null,
+      q.eps || null,
+      q.pe  || null,
+      toBigInt(q.sharesOutstanding),
     ]);
   } catch (err) {
     console.warn('[DB] sauvegarderQuote ' + symbol + ':', err.message);
