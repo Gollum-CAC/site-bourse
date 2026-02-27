@@ -1,102 +1,98 @@
-# 🚀 Guide de déploiement — Site Bourse sur VPS
+# 🚀 Guide de déploiement — Site Bourse sur VPS Linux
 
-**VPS :** 192.210.181.169 (Ubuntu 24.04)  
-**Stack :** Node.js + PostgreSQL + Nginx + PM2
+**Stack :** Node.js 24 + PostgreSQL 16 + Nginx + PM2  
+**Plan FMP :** Gratuit (250 appels/jour · 87 symboles US)
 
 ---
 
-## ÉTAPE 1 — Se connecter au VPS
+## Prérequis
 
-Depuis votre PC Windows, ouvrez **PowerShell** ou **CMD** et tapez :
+- Un VPS sous Ubuntu 22.04 ou 24.04
+- Accès SSH root
+- Le repo git du projet sur GitHub (ou GitLab)
 
-```bash
-ssh root@192.210.181.169
+---
+
+## ÉTAPE 1 — Connexion SSH
+
+Depuis votre PC Windows :
+
+```powershell
+ssh root@VOTRE_IP_VPS
 ```
 
-Il vous demandera le mot de passe root de votre VPS (fourni par RackNerd).
-
 ---
 
-## ÉTAPE 2 — Installation automatique (une seule fois)
+## ÉTAPE 2 — Installation du serveur (une seule fois)
 
-Une fois connecté en SSH, copiez-collez ces commandes **une par une** :
-
-### 2a. Récupérer le script d'installation depuis git
-
-D'abord, trouvez l'URL de votre repo GitHub. Allez sur github.com,  
-copiez l'URL HTTPS (ex: `https://github.com/VotreUser/site-bourse.git`)
+Une fois connecté en SSH :
 
 ```bash
-# Cloner temporairement pour récupérer le script
-cd /tmp
-git clone https://github.com/VotreUser/site-bourse.git setup-tmp
-bash setup-tmp/setup-vps.sh
+# Télécharger le script d'installation
+curl -fsSL https://raw.githubusercontent.com/VOTRE_USER/site-bourse/main/setup-vps.sh -o setup-vps.sh
+bash setup-vps.sh
 ```
 
-> ⚠️ Remplacez `https://github.com/VotreUser/site-bourse.git` par votre vraie URL
-
-### 2b. Le script installe automatiquement :
-- Node.js 20 LTS
-- PostgreSQL (avec la DB `site_bourse` et l'user `postgres/flo`)
-- Nginx (serveur web)
-- PM2 (gestionnaire de processus)
-- Tous les dossiers nécessaires
+**Ce script installe automatiquement :**
+- Node.js 24 LTS
+- PostgreSQL (DB `site_bourse`, user `postgres`/`flo`)
+- Nginx (reverse proxy + serveur statique)
+- PM2 (gestionnaire de processus Node.js)
+- UFW (firewall : SSH + HTTP + HTTPS)
 
 ---
 
-## ÉTAPE 3 — Cloner le projet sur le VPS
+## ÉTAPE 3 — Cloner le projet
 
 ```bash
 cd /var/www/site-bourse
-git clone https://github.com/VotreUser/site-bourse.git .
+git clone https://github.com/VOTRE_USER/site-bourse.git .
 ```
 
 ---
 
-## ÉTAPE 4 — Créer le fichier .env sur le VPS
+## ÉTAPE 4 — Configurer les variables d'environnement
 
 ```bash
-nano /var/www/site-bourse/.env
+cp .env.production.example .env
+nano .env
 ```
 
-Copiez-collez ce contenu :
+Remplir avec vos clés API :
 
 ```env
-FMP_API_KEY="tKuQW8v6mePiCu52T345K1HYt27FB4Kn"
-COINGECKO_API_KEY="CG-bLS4uCxqWgE9mc9fLyuJVVBb"
-NEWSAPI_API_KEY="17bb8a4e077540db9d5d1631ba844502"
+FMP_API_KEY="votre_cle_fmp"
+COINGECKO_API_KEY="votre_cle_coingecko"
+NEWSAPI_API_KEY="votre_cle_newsapi"
 DATABASE_URL="postgresql://postgres:flo@localhost:5432/site_bourse"
 PORT=3001
 NODE_ENV=production
 ```
 
-Sauvegarder : **Ctrl+O** puis **Entrée**, quitter : **Ctrl+X**
+Sauvegarder : **Ctrl+O** → **Entrée** → **Ctrl+X**
 
 ---
 
-## ÉTAPE 5 — Migrer la base de données depuis votre PC
+## ÉTAPE 5 — (Optionnel) Migrer la base depuis votre PC
 
-### 5a. Sur votre PC Windows, exportez la DB actuelle
+Si vous voulez transférer les données existantes :
 
-Ouvrez **PowerShell** sur votre PC (pas le VPS) :
-
+**Sur votre PC Windows (PowerShell) :**
 ```powershell
-pg_dump -U postgres -d site_bourse -F c -f C:\Users\jpbau\Desktop\site_bourse_backup.dump
+# Exporter la DB locale
+pg_dump -U postgres -d site_bourse -F c -f C:\Users\jpbau\Desktop\site_bourse.dump
+
+# Transférer vers le VPS
+scp C:\Users\jpbau\Desktop\site_bourse.dump root@VOTRE_IP_VPS:/tmp/
 ```
 
-### 5b. Transférez le dump vers le VPS
-
-```powershell
-scp C:\Users\jpbau\Desktop\site_bourse_backup.dump root@192.210.181.169:/tmp/
-```
-
-### 5c. Sur le VPS, importez le dump
-
+**Sur le VPS :**
 ```bash
-pg_restore -U postgres -d site_bourse -v /tmp/site_bourse_backup.dump
+pg_restore -U postgres -d site_bourse -v /tmp/site_bourse.dump
 ```
 
-> ✅ Vos 346 actions et toutes les données existantes seront conservées !
+> Si vous ne transférez pas la DB, le crawler remplira automatiquement les données
+> en environ 2 jours (budget 200 appels/jour sur le plan gratuit FMP).
 
 ---
 
@@ -107,55 +103,55 @@ cd /var/www/site-bourse
 bash deploy.sh
 ```
 
-Ce script :
-1. Installe les dépendances Node.js du backend
-2. Build le frontend React en statique
-3. Copie le build dans le dossier Nginx
-4. Démarre le backend avec PM2
+Le script :
+1. `git pull` (code à jour)
+2. `npm install` backend
+3. Build React → `frontend/dist/`
+4. Copie du build dans `/var/www/site-bourse-front/`
+5. Démarrage du backend avec PM2
 
 ---
 
 ## ÉTAPE 7 — Vérifications
 
 ```bash
-# Vérifier que le backend tourne
+# État des processus PM2
 pm2 status
 
-# Voir les logs en temps réel
+# Logs en temps réel
 pm2 logs site-bourse-backend
-
-# Vérifier Nginx
-systemctl status nginx
 
 # Tester l'API
 curl http://localhost:3001/api/health
+
+# Vérifier Nginx
+systemctl status nginx
+nginx -t
 ```
 
-Le site devrait être accessible sur : **http://192.210.181.169**
+Le site est accessible sur : **http://VOTRE_IP_VPS**
 
 ---
 
-## Mise à jour du site (après chaque git push)
-
-Depuis le VPS en SSH :
+## Mise à jour après un `git push`
 
 ```bash
 cd /var/www/site-bourse
 bash deploy.sh
 ```
 
-C'est tout ! 🎉
-
 ---
 
 ## Commandes PM2 utiles
 
 ```bash
-pm2 status                    # État de tous les processus
-pm2 logs site-bourse-backend  # Logs en temps réel
-pm2 restart site-bourse-backend  # Redémarrer le backend
-pm2 stop site-bourse-backend     # Arrêter le backend
-pm2 monit                     # Dashboard temps réel
+pm2 status                          # Vue d'ensemble
+pm2 logs site-bourse-backend        # Logs temps réel
+pm2 logs site-bourse-backend --lines 100  # 100 dernières lignes
+pm2 restart site-bourse-backend     # Redémarrer
+pm2 stop site-bourse-backend        # Arrêter
+pm2 monit                           # Dashboard CPU/RAM
+pm2 save                            # Sauvegarder la config (survie reboot)
 ```
 
 ---
@@ -165,16 +161,61 @@ pm2 monit                     # Dashboard temps réel
 **Le site ne s'affiche pas :**
 ```bash
 systemctl status nginx
-nginx -t  # Teste la config Nginx
+nginx -t
+cat /var/log/nginx/site-bourse.error.log
 ```
 
 **Le backend ne répond pas :**
 ```bash
 pm2 logs site-bourse-backend --lines 50
+# Vérifier que le port 3001 est libre
+ss -tlnp | grep 3001
 ```
 
-**Problème de DB :**
+**Problème de base de données :**
 ```bash
-sudo -u postgres psql -c "\l"  # Lister les bases
-sudo -u postgres psql site_bourse -c "SELECT COUNT(*) FROM stocks;"
+sudo -u postgres psql -c "\l"
+sudo -u postgres psql -d site_bourse -c "SELECT COUNT(*) FROM stocks;"
+sudo -u postgres psql -d site_bourse -c "SELECT * FROM crawler_state;"
+```
+
+**Vérifier le quota FMP :**
+```bash
+curl http://localhost:3001/api/quota
+```
+
+**Vérifier la progression du crawler :**
+```bash
+curl http://localhost:3001/api/health | python3 -m json.tool
+# ou directement dans le navigateur : http://VOTRE_IP_VPS/api/db-status
+```
+
+---
+
+## Calendrier de remplissage de la DB
+
+| Jour | Appels FMP | Données récupérées |
+|------|-----------|---------------------|
+| J1   | ~88        | 87 quotes (batch) + jusqu'à 88 profils |
+| J2   | ~87        | 87 historiques de dividendes |
+| J3   | ~10        | Refresh quotes (EOD toutes les 6h) |
+| J4+  | ~10/jour   | Maintenance uniquement |
+
+Le site est pleinement fonctionnel dès J1 (cours affichés).  
+Les dividendes apparaissent dans "Dividend Stocks" à partir de J2.
+
+---
+
+## Structure des dossiers sur le VPS
+
+```
+/var/www/site-bourse/          ← Code source (git)
+  backend/src/                 ← API Node.js
+  frontend/dist/               ← Build React (généré par deploy.sh)
+  .env                         ← Variables (ne pas committer !)
+  ecosystem.config.js          ← Config PM2
+
+/var/www/site-bourse-front/    ← Fichiers servis par Nginx
+/var/log/site-bourse/          ← Logs PM2 (out.log, error.log)
+/etc/nginx/sites-available/site-bourse  ← Config Nginx
 ```

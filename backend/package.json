@@ -1,7 +1,7 @@
 {
   "name": "site-bourse-backend",
   "version": "1.0.0",
-  "description": "Backend API pour Site Bourse",
+  "description": "Backend API pour Site Bourse — Plan FMP gratuit",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -11,8 +11,6 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "lightweight-charts": "^5.1.0",
-    "pg": "^8.13.1",
-    "yahoo-finance2": "^2.14.0"
+    "pg": "^8.13.1"
   }
 }
