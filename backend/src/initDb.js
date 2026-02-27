@@ -129,7 +129,7 @@ async function initDatabase() {
     await pool.query(`
       INSERT INTO crawler_state (task_name, symbols_total) VALUES
         ('init_symbols',    87),
-        ('batch_quotes',    87),
+        ('fetch_quotes',    87),
         ('fetch_profiles',  87),
         ('fetch_dividends', 87),
         ('calculate_scores',87)

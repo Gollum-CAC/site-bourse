@@ -119,17 +119,28 @@ async function fmpFetch(endpoint, cacheKey, ttl = cache.DEFAULT_TTL) {
 // === ENDPOINTS DISPONIBLES SUR LE PLAN GRATUIT ===
 // ============================================================
 
-// --- Quote (cours) — 1 appel pour jusqu'à N symboles en batch ---
+// --- Quote (cours) — plan gratuit : 1 symbole à la fois uniquement ---
+// L'endpoint multi-symboles (AAPL,MSFT,...) est PREMIUM sur FMP free.
 async function getQuote(symbol) {
   return fmpFetch(`quote?symbol=${symbol}`, `quote:${symbol}`, 300); // cache 5 min
 }
 
+// getBatchQuotes : appels individuels séquentiels (plan gratuit)
+// N symboles = N appels. À utiliser avec modération côté crawler.
 async function getBatchQuotes(symbols) {
   if (!symbols || symbols.length === 0) return [];
-  // FMP accepte une liste séparée par des virgules — 1 seul appel !
-  const list = symbols.join(',');
-  const data = await fmpFetch(`quote?symbol=${list}`, `batchQuote:${list}`, 300);
-  return Array.isArray(data) ? data : [];
+  const results = [];
+  for (const symbol of symbols) {
+    try {
+      const data = await fmpFetch(`quote?symbol=${symbol}`, `quote:${symbol}`, 300);
+      const quote = Array.isArray(data) ? data[0] : data;
+      if (quote && quote.price) results.push({ ...quote, symbol });
+    } catch (err) {
+      if (err.code === 'QUOTA_DEPASSE') throw err; // propager
+      // sinon ignorer et continuer
+    }
+  }
+  return results;
 }
 
 // --- Search ---

@@ -67,17 +67,20 @@ async function getBatchQuotes(symbols) {
     aRafraichir.push(...symbols);
   }
 
-  // Fallback API — 1 seul appel batch pour tous les symboles périmés
-  if (aRafraichir.length > 0) {
+  // Fallback API — appels individuels (plan gratuit, pas de batch multi-symboles)
+  // Limite à 3 symboles max pour ne pas consommer trop de quota utilisateur
+  const aFetch = aRafraichir.slice(0, 3);
+  for (const sym of aFetch) {
     try {
-      const data = await fmpService.getBatchQuotes(aRafraichir);
-      for (const quote of (Array.isArray(data) ? data : [])) {
-        if (!quote.symbol) continue;
-        await sauvegarderQuote(quote.symbol, quote);
-        resultats[quote.symbol] = quote;
+      const data = await fmpService.getQuote(sym);
+      const quote = Array.isArray(data) ? data[0] : data;
+      if (quote && quote.price) {
+        await sauvegarderQuote(sym, quote);
+        resultats[sym] = quote;
       }
     } catch (err) {
-      console.warn('[DB] Batch fallback FMP:', err.message);
+      if (err.code !== 'QUOTA_DEPASSE')
+        console.warn('[DB] Quote fallback ' + sym + ':', err.message);
     }
   }
 
