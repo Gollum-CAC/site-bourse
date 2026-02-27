@@ -1,31 +1,15 @@
 // Service yahoo-finance2 v3 — compatible Node.js 24
-// v3 utilise import/export ESM mais supporte require() via wrapper
-// Pas de clé API, pas de limite, US + Europe
+// L'API v3 expose une fonction default via require()
 
-let yahooFinance;
-
-// yahoo-finance2 v3 est un module ESM — on charge dynamiquement
-async function getYahoo() {
-  if (!yahooFinance) {
-    const mod = await import('yahoo-finance2');
-    yahooFinance = mod.default;
-    try {
-      yahooFinance.setGlobalConfig({
-        validation: { logErrors: false, logOptionsErrors: false },
-      });
-    } catch {}
-  }
-  return yahooFinance;
-}
+const yahooFinance = require('yahoo-finance2').default;
 
 // ============================================================
 // === QUOTE ===
 // ============================================================
 
 async function getQuote(symbol) {
-  const yf = await getYahoo();
   try {
-    const quote = await yf.quote(symbol);
+    const quote = await yahooFinance.quote(symbol);
     if (!quote) return null;
     return normalizeQuote(quote);
   } catch (err) {
@@ -35,23 +19,24 @@ async function getQuote(symbol) {
 
 async function getBatchQuotes(symbols) {
   if (!symbols || symbols.length === 0) return [];
-  const yf = await getYahoo();
-  try {
-    const results = await yf.quote(symbols);
-    const list = Array.isArray(results) ? results : [results];
-    return list.filter(q => q && q.regularMarketPrice).map(normalizeQuote);
-  } catch (err) {
-    // Fallback individuel si le batch échoue
-    const out = [];
-    for (const sym of symbols) {
-      try {
-        const q = await yf.quote(sym);
-        if (q && q.regularMarketPrice) out.push(normalizeQuote(q));
-      } catch {}
-      await new Promise(r => setTimeout(r, 200));
+  const out = [];
+  // Yahoo v3 ne supporte pas les tableaux en batch — appels individuels
+  // Mais rapides : pas de quota, on peut en faire ~100 en parallèle par petits groupes
+  const CHUNK = 10; // 10 appels en parallèle
+  for (let i = 0; i < symbols.length; i += CHUNK) {
+    const chunk = symbols.slice(i, i + CHUNK);
+    const results = await Promise.allSettled(
+      chunk.map(sym => yahooFinance.quote(sym))
+    );
+    for (const res of results) {
+      if (res.status === 'fulfilled' && res.value?.regularMarketPrice) {
+        out.push(normalizeQuote(res.value));
+      }
     }
-    return out;
+    // Petite pause entre chunks pour ne pas surcharger Yahoo
+    if (i + CHUNK < symbols.length) await new Promise(r => setTimeout(r, 500));
   }
+  return out;
 }
 
 function normalizeQuote(q) {
@@ -90,9 +75,8 @@ function normalizeQuote(q) {
 // ============================================================
 
 async function getCompanyProfile(symbol) {
-  const yf = await getYahoo();
   try {
-    const result = await yf.quoteSummary(symbol, {
+    const result = await yahooFinance.quoteSummary(symbol, {
       modules: ['assetProfile', 'summaryDetail', 'defaultKeyStatistics'],
     });
     const p  = result?.assetProfile || {};
@@ -100,28 +84,28 @@ async function getCompanyProfile(symbol) {
     const ks = result?.defaultKeyStatistics || {};
     return {
       symbol,
-      name:             symbol,
-      companyName:      symbol,
-      description:      p.longBusinessSummary || null,
-      sector:           p.sector || null,
-      industry:         p.industry || null,
-      country:          p.country || null,
-      website:          p.website || null,
-      ceo:              p.companyOfficers?.[0]?.name || null,
-      employees:        p.fullTimeEmployees || null,
-      address:          p.address1 || null,
-      city:             p.city || null,
-      state:            p.state || null,
-      isEtf:            false,
+      name:              symbol,
+      companyName:       symbol,
+      description:       p.longBusinessSummary || null,
+      sector:            p.sector || null,
+      industry:          p.industry || null,
+      country:           p.country || null,
+      website:           p.website || null,
+      ceo:               p.companyOfficers?.[0]?.name || null,
+      employees:         p.fullTimeEmployees || null,
+      address:           p.address1 || null,
+      city:              p.city || null,
+      state:             p.state || null,
+      isEtf:             false,
       isActivelyTrading: true,
-      beta:             sd.beta || ks.beta || null,
-      dividendYield:    sd.dividendYield
-                          ? Math.round(sd.dividendYield * 10000) / 100
-                          : null,
-      exDividendDate:   sd.exDividendDate || null,
-      payoutRatio:      sd.payoutRatio || null,
-      forwardPE:        sd.forwardPE || null,
-      priceToBook:      ks.priceToBook || null,
+      beta:              sd.beta || ks.beta || null,
+      dividendYield:     sd.dividendYield
+                           ? Math.round(sd.dividendYield * 10000) / 100
+                           : null,
+      exDividendDate:    sd.exDividendDate || null,
+      payoutRatio:       sd.payoutRatio || null,
+      forwardPE:         sd.forwardPE || null,
+      priceToBook:       ks.priceToBook || null,
     };
   } catch (err) {
     throw new Error(`Yahoo profile ${symbol}: ${err.message}`);
@@ -133,9 +117,8 @@ async function getCompanyProfile(symbol) {
 // ============================================================
 
 async function getDividends(symbol) {
-  const yf = await getYahoo();
   try {
-    const result = await yf.historical(symbol, {
+    const result = await yahooFinance.historical(symbol, {
       period1: '2015-01-01',
       events:  'dividends',
     });
@@ -155,14 +138,13 @@ async function getDividends(symbol) {
 // ============================================================
 
 async function getHistoricalPrice(symbol, from, to) {
-  const yf = await getYahoo();
   try {
     const opts = { period1: from || '2020-01-01' };
     if (to) opts.period2 = to;
-    const result = await yf.historical(symbol, opts);
+    const result = await yahooFinance.historical(symbol, opts);
     return (result || []).map(d => ({
       date:   d.date instanceof Date ? d.date.toISOString().split('T')[0] : String(d.date),
-      open:   d.open,  high: d.high,  low: d.low,
+      open:   d.open, high: d.high, low: d.low,
       close:  d.close, volume: d.volume,
     }));
   } catch (err) {
@@ -175,9 +157,8 @@ async function getHistoricalPrice(symbol, from, to) {
 // ============================================================
 
 async function searchStock(query) {
-  const yf = await getYahoo();
   try {
-    const result = await yf.search(query, { quotesCount: 15 });
+    const result = await yahooFinance.search(query, { quotesCount: 15 });
     return (result?.quotes || []).map(q => ({
       symbol:   q.symbol,
       name:     q.longname || q.shortname || q.symbol,
