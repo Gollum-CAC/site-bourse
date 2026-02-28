@@ -24,7 +24,10 @@ router.get('/super', async (req, res) => {
 
     let query = `
       SELECT
-        s.symbol, s.name, s.sector, s.industry, s.country, s.currency,
+        s.symbol, s.name, s.sector, s.industry,
+        COALESCE(p.country, s.country) as country,
+        COALESCE(p.sector, s.sector) as sector_detail,
+        s.currency,
         q.price, q.market_cap,
         da.current_yield, da.avg_yield_5y, da.latest_annual_div,
         da.years_of_dividends, da.dividend_growth, da.trend,
@@ -32,6 +35,7 @@ router.get('/super', async (req, res) => {
       FROM dividend_analysis da
       JOIN stocks s ON s.symbol = da.symbol
       LEFT JOIN stock_quotes q ON q.symbol = da.symbol
+      LEFT JOIN stock_profiles p ON p.symbol = da.symbol
       WHERE da.current_yield >= $1
     `;
     const params = [minYield];
